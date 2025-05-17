@@ -6,8 +6,7 @@ import { toast } from "react-toastify";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { MapPin, Lock } from "lucide-react";
-import type { GeoLocationKeyProps, SavedLocation } from "../Types";
-import L from "leaflet";
+import type { GeoLocationKeyProps } from "../Types";
 
 interface LocationState {
   latitude: number;
@@ -15,20 +14,48 @@ interface LocationState {
   accuracy: number;
 }
 
-const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated, disabled = false, mode }) => {
+const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated, disabled = false, mode = "encode" }) => {
   const [dialogOpen, setDialogOpen] = useState<boolean>(false);
   const [targetLocation, setTargetLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [currentLocation, setCurrentLocation] = useState<LocationState | null>(null);
   const [locationName, setLocationName] = useState<string>("");
   const [radius, setRadius] = useState<number>(100);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [savedLocations, setSavedLocations] = useState<SavedLocation[]>([]);
+  const [savedLocations, setSavedLocations] = useState<Array<{ name: string; lat: number; lng: number; radius: number }>>([]);
   const [locationKey, setLocationKey] = useState<string>("");
+  const [mapInitialized, setMapInitialized] = useState<boolean>(false);
 
   const mapRef = useRef<HTMLDivElement | null>(null);
-  const leafletMapRef = useRef<L.Map | null>(null);
-  const markerRef = useRef<L.Marker | null>(null);
-  const circleRef = useRef<L.Circle | null>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
+  const circleRef = useRef<any>(null);
+
+  // Memuat library Leaflet saat komponen dimuat
+  useEffect(() => {
+    // Cek apakah script Leaflet sudah dimuat
+    if (!window.L && !document.getElementById("leaflet-script")) {
+      const script = document.createElement("script");
+      script.id = "leaflet-script";
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.integrity = "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=";
+      script.crossOrigin = "";
+      script.async = true;
+      script.onload = () => console.log("Leaflet library loaded successfully");
+      script.onerror = () => console.error("Failed to load Leaflet library");
+      document.head.appendChild(script);
+    }
+
+    // Cek apakah CSS Leaflet sudah dimuat
+    if (!document.getElementById("leaflet-css")) {
+      const link = document.createElement("link");
+      link.id = "leaflet-css";
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      link.integrity = "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=";
+      link.crossOrigin = "";
+      document.head.appendChild(link);
+    }
+  }, []);
 
   // Load saved locations on component mount
   useEffect(() => {
@@ -42,54 +69,37 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
     }
   }, []);
 
-  // Initialize Leaflet map
+  // Initialize map when dialog opens
   useEffect(() => {
-    if (dialogOpen && mapRef.current && !leafletMapRef.current) {
-      // Load Leaflet CSS dynamically
-      if (!document.querySelector('link[href*="leaflet.css"]')) {
-        const leafletCSS = document.createElement("link");
-        leafletCSS.rel = "stylesheet";
-        leafletCSS.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-        leafletCSS.integrity = "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=";
-        leafletCSS.crossOrigin = "";
-        document.head.appendChild(leafletCSS);
-      }
-
-      // Short timeout to ensure the element is ready
-      setTimeout(() => {
+    if (dialogOpen) {
+      // Delay to ensure DOM is ready
+      const timer = setTimeout(() => {
         initMap();
-      }, 100);
-    }
+      }, 300);
 
-    return () => {
-      if (leafletMapRef.current && !dialogOpen) {
-        leafletMapRef.current.remove();
-        leafletMapRef.current = null;
-        markerRef.current = null;
-        circleRef.current = null;
-      }
-    };
+      return () => clearTimeout(timer);
+    }
   }, [dialogOpen]);
 
-  // Update circle radius
-  useEffect(() => {
-    if (circleRef.current) {
-      circleRef.current.setRadius(radius);
-    }
-  }, [radius]);
-
-  // Initialize Leaflet map
+  // Initialize map
   const initMap = () => {
+    if (!mapRef.current || !window.L || mapInitialized) return;
+
     try {
-      if (!mapRef.current) {
-        console.error("Map reference is null");
-        return;
+      console.log("Initializing map...");
+
+      // Clear any existing map
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
       }
 
-      // Default map center (Jakarta)
-      const defaultCenter: [number, number] = [-6.2088, 106.8456];
+      const L = window.L;
 
-      // Create map instance
+      // Default center (Jakarta)
+      const defaultCenter: L.LatLngExpression = [-6.2088, 106.8456]; // Example coordinates (Jakarta)
+
+      // Create map with explicit height
       const map = L.map(mapRef.current, {
         center: defaultCenter,
         zoom: 15,
@@ -102,11 +112,11 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
 
       // Create marker
       const marker = L.marker(defaultCenter, {
-        draggable: mode === "encode", // Marker hanya bisa dipindahkan dalam mode encode
+        draggable: mode === "encode",
         title: "Lokasi Target",
       }).addTo(map);
 
-      // Create circle
+      // Create radius circle
       const circle = L.circle(defaultCenter, {
         radius: radius,
         color: "#4f46e5",
@@ -115,8 +125,8 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
         weight: 2,
       }).addTo(map);
 
-      // Set refs
-      leafletMapRef.current = map;
+      // Store references
+      mapInstanceRef.current = map;
       markerRef.current = marker;
       circleRef.current = circle;
       setTargetLocation({ lat: defaultCenter[0], lng: defaultCenter[1] });
@@ -127,17 +137,29 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
           const position = marker.getLatLng();
           setTargetLocation({ lat: position.lat, lng: position.lng });
           circle.setLatLng(position);
-          map.panTo(position);
         });
       }
 
-      // Get current location
+      // Invalidate size after a short delay to ensure proper rendering
+      setTimeout(() => {
+        map.invalidateSize();
+        console.log("Map invalidateSize called");
+      }, 200);
+
+      setMapInitialized(true);
       getCurrentLocation();
     } catch (error) {
       console.error("Error initializing map:", error);
-      toast.error("Gagal menginisialisasi peta. Coba refresh halaman.");
+      toast.error("Gagal menampilkan peta. Harap refresh halaman.");
     }
   };
+
+  // Update circle radius
+  useEffect(() => {
+    if (circleRef.current && mapInitialized) {
+      circleRef.current.setRadius(radius);
+    }
+  }, [radius, mapInitialized]);
 
   // Get current location
   const getCurrentLocation = () => {
@@ -147,29 +169,25 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude, accuracy } = position.coords;
+          console.log("Got current location:", latitude, longitude);
           setCurrentLocation({ latitude, longitude, accuracy });
 
-          if (leafletMapRef.current && markerRef.current && circleRef.current) {
-            const newPos: [number, number] = [latitude, longitude];
-
-            // Dalam mode decode, kita tidak memindahkan marker
+          if (mapInstanceRef.current && markerRef.current && circleRef.current) {
+            // Dalam mode encode, pindahkan marker ke lokasi user
             if (mode === "encode") {
-              markerRef.current.setLatLng(newPos);
-              circleRef.current.setLatLng(newPos);
-            }
-
-            leafletMapRef.current.panTo(newPos);
-
-            if (mode === "encode") {
+              markerRef.current.setLatLng([latitude, longitude]);
+              circleRef.current.setLatLng([latitude, longitude]);
               setTargetLocation({ lat: latitude, lng: longitude });
             }
+
+            // Selalu pindahkan peta ke lokasi user
+            mapInstanceRef.current.panTo([latitude, longitude]);
           }
 
           setIsLoading(false);
 
-          // Jika mode decode, langsung cek lokasi
+          // Jika mode decode, otomatis cek lokasi
           if (mode === "decode") {
-            console.log("Checking location in decode mode");
             checkLocationForKey();
           }
         },
@@ -186,7 +204,7 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
     }
   };
 
-  // Save the location (hanya untuk mode encode)
+  // Save the location
   const handleSaveLocation = () => {
     if (!targetLocation || !locationName.trim()) {
       toast.error("Harap isi nama lokasi");
@@ -205,27 +223,26 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
     setSavedLocations(updatedLocations);
     localStorage.setItem("stegoLocations", JSON.stringify(updatedLocations));
 
-    // Generate key untuk lokasi baru
+    // Generate key for saved location
     const locationSeed = `${newLocation.lat.toFixed(6)}-${newLocation.lng.toFixed(6)}-${newLocation.name}`;
     const key = generateConsistentKey(locationSeed);
 
     setLocationKey(key);
     onKeyGenerated(key);
 
-    toast.success(`Lokasi "${locationName}" berhasil disimpan dan kunci dibuat`);
+    toast.success(`Lokasi "${locationName}" disimpan dan kunci dibuat`);
     setDialogOpen(false);
   };
 
-  // Check if user is within the radius of any saved location
+  // Check location key
   const checkLocationForKey = () => {
     if (!currentLocation) {
       getCurrentLocation();
-      toast.info("Mengambil lokasi saat ini...");
       return;
     }
 
     if (savedLocations.length === 0) {
-      toast.error("Tidak ada lokasi yang tersimpan untuk ekstraksi pesan");
+      toast.error("Tidak ada lokasi tersimpan");
       return;
     }
 
@@ -245,29 +262,30 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
     }
 
     if (isWithinAnyRadius && matchedLocation) {
-      // Generate kunci berdasarkan lokasi yang cocok
+      // Generate a consistent key based on the location
       const locationSeed = `${matchedLocation.lat.toFixed(6)}-${matchedLocation.lng.toFixed(6)}-${matchedLocation.name}`;
       const key = generateConsistentKey(locationSeed);
 
+      // Set state and pass key to parent
       setLocationKey(key);
       onKeyGenerated(key);
 
       // Jika moda decoding, tampilkan lokasi terdeteksi di map
-      if (mode === "decode" && markerRef.current && circleRef.current) {
-        const matchedPos: [number, number] = [matchedLocation.lat, matchedLocation.lng];
-        markerRef.current.setLatLng(matchedPos);
-        circleRef.current.setLatLng(matchedPos);
+      if (mode === "decode" && markerRef.current && circleRef.current && mapInstanceRef.current) {
+        markerRef.current.setLatLng([matchedLocation.lat, matchedLocation.lng]);
+        circleRef.current.setLatLng([matchedLocation.lat, matchedLocation.lng]);
         circleRef.current.setRadius(matchedLocation.radius);
+        mapInstanceRef.current.panTo([matchedLocation.lat, matchedLocation.lng]);
       }
 
       toast.success(`Kunci lokasi ditemukan untuk: ${matchedLocation.name}`);
       setDialogOpen(false);
     } else {
-      toast.error("Anda tidak berada dalam radius lokasi manapun yang tersimpan");
+      toast.error("Anda tidak berada dalam radius lokasi yang tersimpan");
     }
   };
 
-  // Calculate distance between two geographic points (Haversine formula)
+  // Calculate distance
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
     const R = 6371e3; // Earth radius in meters
     const φ1 = (lat1 * Math.PI) / 180;
@@ -307,8 +325,33 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
     return key;
   };
 
+  // Direct access key
+  const generateDirectKey = () => {
+    if (!currentLocation) {
+      getCurrentLocation();
+      return;
+    }
+
+    const defaultName = locationName.trim() || "Lokasi Saat Ini";
+    const seed = `${currentLocation.latitude.toFixed(6)}-${currentLocation.longitude.toFixed(6)}-${defaultName}`;
+    const key = generateConsistentKey(seed);
+
+    setLocationKey(key);
+    onKeyGenerated(key);
+    toast.success(`Kunci lokasi dibuat: ${defaultName}`);
+    setDialogOpen(false);
+  };
+
   return (
-    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+    <Dialog
+      open={dialogOpen}
+      onOpenChange={(open) => {
+        setDialogOpen(open);
+        if (!open) {
+          setMapInitialized(false);
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button variant="outline" className="whitespace-nowrap bg-blue-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30 hover:border-blue-500/50 hover:text-blue-200" disabled={disabled}>
           {mode === "encode" ? <MapPin className="mr-2 h-4 w-4" /> : <Lock className="mr-2 h-4 w-4" />}
@@ -323,11 +366,11 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
 
         <div className="space-y-6 py-4">
           <div className="h-64 w-full bg-slate-700 rounded-lg overflow-hidden">
-            <div ref={mapRef} className="w-full h-full"></div>
+            <div ref={mapRef} style={{ width: "100%", height: "100%", zIndex: 1 }} className="leaflet-container"></div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Bagian kiri - hanya ditampilkan dalam mode encode */}
+            {/* Bagian khusus untuk encode */}
             {mode === "encode" && (
               <div className="space-y-4">
                 <div>
@@ -353,10 +396,14 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
                     Simpan & Gunakan
                   </Button>
                 </div>
+
+                <Button onClick={generateDirectKey} className="w-full bg-green-600 hover:bg-green-700" disabled={!currentLocation}>
+                  Gunakan Lokasi Ini Langsung
+                </Button>
               </div>
             )}
 
-            {/* Bagian kanan */}
+            {/* Bagian untuk kedua mode */}
             <div className={`space-y-4 ${mode === "decode" ? "col-span-2" : ""}`}>
               <Label className="text-blue-100 block">{mode === "encode" ? "Lokasi Tersimpan" : "Informasi Lokasi"}</Label>
 
@@ -376,15 +423,15 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
               </div>
 
               {mode === "decode" && (
-                <Button onClick={getCurrentLocation} className="w-full bg-slate-700 hover:bg-slate-600" disabled={isLoading}>
-                  {isLoading ? "Mencari..." : "Periksa Lokasi Saya"}
-                </Button>
-              )}
+                <>
+                  <Button onClick={getCurrentLocation} className="w-full bg-slate-700 hover:bg-slate-600" disabled={isLoading}>
+                    {isLoading ? "Mencari..." : "Dapatkan Lokasi Saya"}
+                  </Button>
 
-              {mode === "decode" && (
-                <Button onClick={checkLocationForKey} className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700" disabled={isLoading || savedLocations.length === 0}>
-                  Periksa Kunci Lokasi
-                </Button>
+                  <Button onClick={checkLocationForKey} className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700" disabled={isLoading || savedLocations.length === 0}>
+                    Periksa Kunci Lokasi
+                  </Button>
+                </>
               )}
 
               {/* Menampilkan kunci yang dihasilkan */}

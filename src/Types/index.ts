@@ -35,12 +35,12 @@ export interface SteganographySettings {
 }
 
 // Hapus definisi duplikat
+// Hapus definisi duplikat
 export interface GeoLocationKeyProps {
   onKeyGenerated: (key: string) => void;
   disabled?: boolean;
-  mode: "encode" | "decode"; // Tambahkan mode untuk membedakan encoder dan decoder
+  mode?: "encode" | "decode"; // Tambahkan mode dengan nilai default
 }
-
 // Tambahkan interface untuk lokasi tersimpan
 export interface SavedLocation {
   name: string;

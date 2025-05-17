@@ -147,22 +147,20 @@ const Encoder = () => {
               <div className="mt-4">
                 <div className="flex gap-2">
                   <div className="mt-4">
-                    jsx
                     <div className="mt-4">
                       <Label htmlFor="locationKey" className="text-blue-100 font-medium mb-2 block">
                         Kunci Lokasi
                       </Label>
 
-                      <div className="flex gap-2 items-center">
+                      <div className="flex gap-2 items-center mb-2">
                         <GeoLocationKeyGenerator onKeyGenerated={setLocationKey} disabled={isEncoding} mode="encode" />
-
-                        {/* Display the current key */}
-                        {locationKey && (
-                          <div className="flex-1 bg-slate-700/30 rounded-md flex items-center px-3 py-2 overflow-hidden">
-                            <span className="font-mono text-blue-300 text-sm truncate">{locationKey}</span>
-                          </div>
-                        )}
                       </div>
+
+                      {locationKey && (
+                        <div className="bg-slate-700/30 rounded-md flex items-center px-3 py-2 overflow-hidden">
+                          <span className="font-mono text-blue-300 text-sm truncate">{locationKey}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
