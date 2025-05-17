@@ -1,13 +1,16 @@
 import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
-import { Slider } from "./ui/slider";
 import { toast } from "react-toastify";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { MapPin, List } from "lucide-react";
-import LocationMap from "./LocationMap"; // Import our new component
+import LocationMap from "./LocationMap";
+import { generateLocationKey } from "../lib/steganography";
 import type { GeoLocationKeyProps } from "../Types";
+
+// Radius tetap (tidak bisa diubah)
+const FIXED_RADIUS = 100;
 
 interface SavedLocation {
   name: string;
@@ -18,7 +21,7 @@ interface SavedLocation {
   createdAt: string;
 }
 
-// Helper to display safe key preview
+// Helper untuk menampilkan preview key dengan aman
 const getKeyPreview = (key?: string) => {
   if (!key) return "Tidak ada kunci";
   return `${key.substring(0, 8)}...`;
@@ -29,9 +32,9 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
   const [savedLocationsDialogOpen, setSavedLocationsDialogOpen] = useState<boolean>(false);
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null);
   const [locationName, setLocationName] = useState<string>("");
-  const [radius, setRadius] = useState<number>(100);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [savedLocations, setSavedLocations] = useState<SavedLocation[]>([]);
+  const [currentKey, setCurrentKey] = useState<string>("");
 
   // Load saved locations on component mount
   useEffect(() => {
@@ -39,7 +42,7 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
       const storedLocations = localStorage.getItem("stegoLocations");
       if (storedLocations) {
         const parsedLocations = JSON.parse(storedLocations);
-        // Filter invalid locations
+        // Filter lokasi yang tidak valid
         const validLocations = parsedLocations.filter((loc: any) => loc && typeof loc === "object" && loc.key && loc.name);
         setSavedLocations(validLocations);
       }
@@ -48,6 +51,14 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
       localStorage.removeItem("stegoLocations");
     }
   }, []);
+
+  // Update key ketika lokasi berubah
+  useEffect(() => {
+    if (currentLocation) {
+      const key = generateLocationKey(currentLocation.latitude, currentLocation.longitude);
+      setCurrentKey(key);
+    }
+  }, [currentLocation]);
 
   // Get current location
   const getCurrentLocation = () => {
@@ -83,32 +94,6 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
     });
   };
 
-  // Generate a consistent key from location data
-  const generateConsistentKey = (seed: string): string => {
-    // Simple deterministic hash function
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      const char = seed.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32bit integer
-    }
-
-    // Use absolute value of hash as seed for random generator
-    const seedValue = Math.abs(hash);
-
-    // Generate key with specific characters
-    let chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let key = "";
-
-    // Use a predictable algorithm to generate the same key for the same seed
-    for (let i = 0; i < 16; i++) {
-      const charIndex = (seedValue + i * 7919) % chars.length; // Use prime number 7919 for better distribution
-      key += chars.charAt(charIndex);
-    }
-
-    return key;
-  };
-
   // Save the location
   const handleSaveLocation = () => {
     if (!currentLocation || !locationName.trim()) {
@@ -116,22 +101,25 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
       return;
     }
 
-    // Generate a key based on location and name
-    const locationSeed = `${currentLocation.latitude.toFixed(6)}-${currentLocation.longitude.toFixed(6)}-${locationName}`;
-    const key = generateConsistentKey(locationSeed);
+    // Gunakan fungsi generateLocationKey (dari steganography.ts)
+    const key = generateLocationKey(currentLocation.latitude, currentLocation.longitude);
 
     if (!key) {
       toast.error("Gagal membuat kunci lokasi");
       return;
     }
 
-    // Create new location object
+    // Bulatkan koordinat untuk tampilan grid
+    const gridLat = Math.round(currentLocation.latitude * 1000) / 1000;
+    const gridLng = Math.round(currentLocation.longitude * 1000) / 1000;
+
+    // Create new location object dengan grid coordinates
     const newLocation: SavedLocation = {
       name: locationName,
       key: key,
-      lat: currentLocation.latitude,
-      lng: currentLocation.longitude,
-      radius: radius,
+      lat: gridLat, // Simpan koordinat grid, bukan koordinat asli
+      lng: gridLng,
+      radius: FIXED_RADIUS, // Selalu tetap 100m
       createdAt: new Date().toISOString(),
     };
 
@@ -192,19 +180,17 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
               <Input id="location-name" placeholder="Kantor, Rumah, dll." value={locationName} onChange={(e) => setLocationName(e.target.value)} className="bg-slate-700/50 border-slate-600 focus:border-blue-500 text-white" />
             </div>
 
-            {/* Map View - New Addition */}
+            {/* Map View */}
             <div className="space-y-2">
               <Label className="text-blue-100">Pilih Lokasi di Peta</Label>
-              <LocationMap position={currentLocation ? [currentLocation.latitude, currentLocation.longitude] : null} radius={radius} editable={true} onPositionChange={handleMapPositionChange} />
+              <LocationMap position={currentLocation ? [currentLocation.latitude, currentLocation.longitude] : null} radius={FIXED_RADIUS} editable={true} onPositionChange={handleMapPositionChange} />
               <p className="text-xs text-slate-400">Klik pada peta untuk memilih lokasi, atau gunakan tombol di bawah untuk mendapatkan lokasi saat ini</p>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <Label className="text-blue-100">Radius (meter)</Label>
-                <span className="text-sm font-mono bg-slate-700/60 px-2 py-0.5 rounded text-blue-300">{radius}m</span>
-              </div>
-              <Slider value={[radius]} min={50} max={500} step={10} onValueChange={(value) => setRadius(value[0])} className="py-1" />
+            {/* Fixed radius info */}
+            <div className="flex justify-between bg-slate-700/40 px-3 py-2 rounded-md">
+              <Label className="text-blue-100">Radius</Label>
+              <span className="text-sm font-mono bg-slate-700/60 px-2 py-0.5 rounded text-blue-300">{FIXED_RADIUS}m (tetap)</span>
             </div>
 
             <div className="flex gap-2">
@@ -216,13 +202,27 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
               </Button>
             </div>
 
+            {/* Grid info and debug info */}
             {currentLocation && (
               <div className="bg-slate-700/30 p-3 rounded-md">
-                <p className="text-xs text-blue-200">Lokasi saat ini:</p>
-                <p className="text-xs text-slate-400">Lat: {currentLocation.latitude.toFixed(6)}</p>
-                <p className="text-xs text-slate-400">Lng: {currentLocation.longitude.toFixed(6)}</p>
+                <p className="text-xs text-blue-200 font-semibold mb-2">Informasi Lokasi:</p>
+                <p className="text-xs text-slate-400">
+                  Grid Koordinat: {Math.round(currentLocation.latitude * 1000) / 1000}, {Math.round(currentLocation.longitude * 1000) / 1000}
+                </p>
+                <p className="text-xs text-slate-400">
+                  Kunci yang dihasilkan: <span className="text-blue-300 font-mono">{currentKey}</span>
+                </p>
+                <p className="text-xs text-slate-500 mt-2">Lokasi dalam grid yang sama akan menghasilkan kunci yang sama</p>
               </div>
             )}
+
+            {/* Grid explanation */}
+            <div className="bg-slate-700/20 p-3 rounded-md">
+              <p className="text-xs text-blue-200 font-semibold mb-1">Tentang Grid Lokasi:</p>
+              <p className="text-xs text-slate-400">• Koordinat dibulatkan ke grid 100m x 100m</p>
+              <p className="text-xs text-slate-400">• Lokasi dalam grid yang sama menghasilkan kunci yang sama</p>
+              <p className="text-xs text-slate-400">• Grid ditampilkan sebagai kotak pada peta</p>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -252,7 +252,9 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
                           <MapPin className="h-4 w-4 text-blue-400 mr-2" />
                           <p className="text-blue-200 font-medium">{location.name}</p>
                         </div>
-                        <p className="text-xs text-slate-400 mt-1">Radius: {location.radius}m</p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          Koordinat: {location.lat.toFixed(3)}, {location.lng.toFixed(3)}
+                        </p>
                         <p className="text-xs text-slate-500 mt-0.5 font-mono">{getKeyPreview(location.key)}</p>
                       </div>
                       <div className="flex gap-2">

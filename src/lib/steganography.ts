@@ -310,12 +310,34 @@ export const decodeMessage = (imageDataUrl: string, locationKey: string, onProgr
 };
 
 // Generate random location key (though you'll primarily use geolocation)
-export const generateLocationKey = (length: number = 16): string => {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+// Tambahkan fungsi ini ke file Anda
+export const generateLocationKey = (latitude: number, longitude: number): string => {
+  // 1. Bulatkan koordinat ke grid 3 digit desimal (sekitar 100m akurasi)
+  const gridLat = Math.round(latitude * 1000) / 1000;
+  const gridLng = Math.round(longitude * 1000) / 1000;
+
+  // 2. Buat seed HANYA dari koordinat yang sudah dibulatkan
+  const locationSeed = `${gridLat},${gridLng}`;
+
+  // 3. Implementasi hash sederhana yang konsisten
+  let hash = 0;
+  for (let i = 0; i < locationSeed.length; i++) {
+    const char = locationSeed.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+
+  // 4. Buat kunci dengan karakter yang diizinkan
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let key = "";
 
-  for (let i = 0; i < length; i++) {
-    key += chars.charAt(Math.floor(Math.random() * chars.length));
+  // Pastikan hash selalu positif
+  const positiveHash = Math.abs(hash);
+
+  // Gunakan algoritma deterministik dengan konstanta tetap
+  for (let i = 0; i < 16; i++) {
+    const position = (positiveHash + i * 13) % chars.length;
+    key += chars.charAt(position);
   }
 
   return key;
