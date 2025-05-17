@@ -213,7 +213,7 @@ const decodeLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingCont
 };
 
 // Main encode function
-export const encodeMessage = (imageDataUrl: string, message: string, locationKey: string, onProgress?: ProgressCallback, settings?: any): Promise<string> => {
+export const encodeMessage = (imageDataUrl: string, message: string, locationKey: string, onProgress?: ProgressCallback): Promise<string> => {
   return new Promise((resolve, reject) => {
     try {
       // Validate input
@@ -264,7 +264,7 @@ export const encodeMessage = (imageDataUrl: string, message: string, locationKey
 };
 
 // Main decode function
-export const decodeMessage = (imageDataUrl: string, locationKey: string, onProgress?: ProgressCallback, algorithm?: string): Promise<string> => {
+export const decodeMessage = (imageDataUrl: string, locationKey: string, onProgress?: ProgressCallback): Promise<string> => {
   return new Promise((resolve, reject) => {
     try {
       // Validate input

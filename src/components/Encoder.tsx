@@ -8,7 +8,7 @@ import { toast } from "react-toastify";
 import { motion } from "framer-motion";
 import ImageHandler from "./ImageHandler";
 import { encodeMessage } from "../lib/steganography";
-import type { SteganographySettings } from "../Types";
+// import type { SteganographySettings } from "../Types";
 import GeoLocationKeyGenerator from "./GeoLocationGenerator";
 
 const Encoder = () => {
@@ -52,13 +52,13 @@ const Encoder = () => {
     setProgress(0);
 
     try {
-      // Create settings object
-      const settings: SteganographySettings = {
-        algorithm: "LocationBased",
-      };
+      //   // Create settings object
+      //   const settings: SteganographySettings = {
+      //     algorithm: "LocationBased",
+      //   };
 
       // Process encoding
-      const result = await encodeMessage(originalImage, message, locationKey, (progress: number) => setProgress(progress), settings);
+      const result = await encodeMessage(originalImage, message, locationKey, (progress: number) => setProgress(progress));
 
       setProgress(100);
       setEncodedImage(result);

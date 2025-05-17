@@ -44,7 +44,7 @@ const Decoder = () => {
 
     try {
       // Process decoding with selected algorithm
-      const message = await decodeMessage(stegoImage, locationKey, (progress: number) => setProgress(progress), "LocationBased");
+      const message = await decodeMessage(stegoImage, locationKey, (progress: number) => setProgress(progress));
 
       setProgress(100);
 

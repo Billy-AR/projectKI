@@ -6,6 +6,7 @@ import { toast } from "react-toastify";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { MapPin, List } from "lucide-react";
+import LocationMap from "./LocationMap"; // Import our new component
 import type { GeoLocationKeyProps } from "../Types";
 
 interface SavedLocation {
@@ -17,7 +18,7 @@ interface SavedLocation {
   createdAt: string;
 }
 
-// Helper untuk menampilkan preview key dengan aman
+// Helper to display safe key preview
 const getKeyPreview = (key?: string) => {
   if (!key) return "Tidak ada kunci";
   return `${key.substring(0, 8)}...`;
@@ -31,7 +32,6 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
   const [radius, setRadius] = useState<number>(100);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [savedLocations, setSavedLocations] = useState<SavedLocation[]>([]);
-  const [locationKey, setLocationKey] = useState<string>("");
 
   // Load saved locations on component mount
   useEffect(() => {
@@ -39,7 +39,7 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
       const storedLocations = localStorage.getItem("stegoLocations");
       if (storedLocations) {
         const parsedLocations = JSON.parse(storedLocations);
-        // Filter lokasi yang tidak valid
+        // Filter invalid locations
         const validLocations = parsedLocations.filter((loc: any) => loc && typeof loc === "object" && loc.key && loc.name);
         setSavedLocations(validLocations);
       }
@@ -72,6 +72,15 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
       toast.error("Browser Anda tidak mendukung geolokasi");
       setIsLoading(false);
     }
+  };
+
+  // Manual location selection from map
+  const handleMapPositionChange = (lat: number, lng: number) => {
+    setCurrentLocation({
+      latitude: lat,
+      longitude: lng,
+      accuracy: 10, // Default accuracy when manually selected
+    });
   };
 
   // Generate a consistent key from location data
@@ -132,7 +141,6 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
     localStorage.setItem("stegoLocations", JSON.stringify(updatedLocations));
 
     // Set the key and notify parent
-    setLocationKey(key);
     onKeyGenerated(key);
 
     toast.success(`Lokasi "${locationName}" disimpan dan kunci dibuat`);
@@ -146,7 +154,6 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
       return;
     }
 
-    setLocationKey(location.key);
     onKeyGenerated(location.key);
     toast.success(`Kunci lokasi "${location.name}" dipilih`);
     setSavedLocationsDialogOpen(false);
@@ -183,6 +190,13 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
                 Nama Lokasi
               </Label>
               <Input id="location-name" placeholder="Kantor, Rumah, dll." value={locationName} onChange={(e) => setLocationName(e.target.value)} className="bg-slate-700/50 border-slate-600 focus:border-blue-500 text-white" />
+            </div>
+
+            {/* Map View - New Addition */}
+            <div className="space-y-2">
+              <Label className="text-blue-100">Pilih Lokasi di Peta</Label>
+              <LocationMap position={currentLocation ? [currentLocation.latitude, currentLocation.longitude] : null} radius={radius} editable={true} onPositionChange={handleMapPositionChange} />
+              <p className="text-xs text-slate-400">Klik pada peta untuk memilih lokasi, atau gunakan tombol di bawah untuk mendapatkan lokasi saat ini</p>
             </div>
 
             <div className="space-y-2">
@@ -229,25 +243,30 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
 
           <div className="py-4">
             {savedLocations.length > 0 ? (
-              <div className="space-y-2 max-h-80 overflow-auto pr-2">
+              <div className="space-y-4 max-h-80 overflow-auto pr-2">
                 {savedLocations.map((location, index) => (
-                  <div key={index} className="bg-slate-700/30 p-3 rounded-md border border-slate-600/50 hover:border-blue-500/30 transition-colors flex justify-between items-center">
-                    <div className="flex-1">
-                      <div className="flex items-center">
-                        <MapPin className="h-4 w-4 text-blue-400 mr-2" />
-                        <p className="text-blue-200 font-medium">{location.name}</p>
+                  <div key={index} className="bg-slate-700/30 p-3 rounded-md border border-slate-600/50 hover:border-blue-500/30 transition-colors">
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="flex-1">
+                        <div className="flex items-center">
+                          <MapPin className="h-4 w-4 text-blue-400 mr-2" />
+                          <p className="text-blue-200 font-medium">{location.name}</p>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1">Radius: {location.radius}m</p>
+                        <p className="text-xs text-slate-500 mt-0.5 font-mono">{getKeyPreview(location.key)}</p>
                       </div>
-                      <p className="text-xs text-slate-400 mt-1">Radius: {location.radius}m</p>
-                      <p className="text-xs text-slate-500 mt-0.5 font-mono">{getKeyPreview(location.key)}</p>
+                      <div className="flex gap-2">
+                        <Button onClick={() => selectLocation(location)} size="sm" className="bg-blue-600 hover:bg-blue-700 text-sm">
+                          Pilih
+                        </Button>
+                        <Button onClick={() => deleteLocation(index)} size="sm" variant="destructive" className="bg-red-600/20 hover:bg-red-700/30 border-red-500/30 text-red-300 text-sm">
+                          Hapus
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button onClick={() => selectLocation(location)} size="sm" className="bg-blue-600 hover:bg-blue-700 text-sm">
-                        Pilih
-                      </Button>
-                      <Button onClick={() => deleteLocation(index)} size="sm" variant="destructive" className="bg-red-600/20 hover:bg-red-700/30 border-red-500/30 text-red-300 text-sm">
-                        Hapus
-                      </Button>
-                    </div>
+
+                    {/* Small map preview for each saved location */}
+                    <LocationMap position={[location.lat, location.lng]} radius={location.radius} editable={false} />
                   </div>
                 ))}
               </div>
