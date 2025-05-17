@@ -1,18 +1,14 @@
 import { useState } from "react";
 import { Button } from "./ui/button";
-// import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Progress } from "./ui/progress";
-import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
-import { Slider } from "./ui/slider";
 import { toast } from "react-toastify";
 import { motion } from "framer-motion";
-// import LocationKeyGenerator from "./LocationKeyGenerator";
 import ImageHandler from "./ImageHandler";
 import { encodeMessage } from "../lib/steganography";
-import type { SteganographyAlgorithm, SteganographySettings } from "../Types";
+import type { SteganographySettings } from "../Types";
 import GeoLocationKeyGenerator from "./GeoLocationGenerator";
 
 const Encoder = () => {
@@ -22,9 +18,6 @@ const Encoder = () => {
   const [encodedImage, setEncodedImage] = useState<string | null>(null);
   const [isEncoding, setIsEncoding] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
-  const [algorithm, setAlgorithm] = useState<SteganographyAlgorithm>("DCT");
-  const [quality, setQuality] = useState<number>(80);
-  //   const downloadRef = useRef<HTMLAnchorElement | null>(null);
 
   const handleImageUpload = (file: File) => {
     if (!file) return;
@@ -59,10 +52,9 @@ const Encoder = () => {
     setProgress(0);
 
     try {
-      // Create settings object based on selected algorithm
+      // Create settings object
       const settings: SteganographySettings = {
-        algorithm,
-        quality: algorithm === "DCT" ? quality : undefined,
+        algorithm: "LocationBased",
       };
 
       // Process encoding
@@ -84,8 +76,7 @@ const Encoder = () => {
 
     const link = document.createElement("a");
     link.href = encodedImage;
-    const fileExtension = algorithm === "DCT" ? "jpg" : "png";
-    link.download = `steganografi_image.${fileExtension}`;
+    link.download = `steganografi_image.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -119,52 +110,17 @@ const Encoder = () => {
             </div>
 
             <div>
-              <Label htmlFor="algorithm" className="text-blue-100 font-medium mb-2 block">
-                Algoritma Steganografi
+              <Label htmlFor="locationKey" className="text-blue-100 font-medium mb-2 block">
+                Kunci Lokasi
               </Label>
-              <RadioGroup defaultValue="DCT" value={algorithm} onValueChange={(value) => setAlgorithm(value as SteganographyAlgorithm)} className="flex gap-6 mb-4" disabled={isEncoding}>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="PVD" id="r2" />
-                  <Label htmlFor="r2">PVD</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="DCT" id="r3" />
-                  <Label htmlFor="r3">DCT</Label>
-                </div>
-              </RadioGroup>
-
-              {algorithm === "DCT" && (
-                <div className="space-y-2 mb-4">
-                  <div className="flex justify-between">
-                    <Label className="text-sm text-blue-200">Kualitas JPEG</Label>
-                    <span className="text-sm font-mono bg-slate-700/60 px-2 py-0.5 rounded text-blue-300">{quality}%</span>
-                  </div>
-                  <Slider value={[quality]} min={50} max={95} step={5} onValueChange={(value) => setQuality(value[0])} disabled={isEncoding} className="py-1" />
-                  <p className="text-xs text-slate-400">Nilai lebih tinggi = kualitas lebih baik, tapi kapasitas pesan lebih kecil</p>
+              <div className="flex gap-2 items-center mb-2">
+                <GeoLocationKeyGenerator onKeyGenerated={setLocationKey} disabled={isEncoding} mode="encode" />
+              </div>
+              {locationKey && (
+                <div className="bg-slate-700/30 rounded-md flex items-center px-3 py-2 overflow-hidden">
+                  <span className="font-mono text-blue-300 text-sm truncate">{locationKey}</span>
                 </div>
               )}
-
-              <div className="mt-4">
-                <div className="flex gap-2">
-                  <div className="mt-4">
-                    <div className="mt-4">
-                      <Label htmlFor="locationKey" className="text-blue-100 font-medium mb-2 block">
-                        Kunci Lokasi
-                      </Label>
-
-                      <div className="flex gap-2 items-center mb-2">
-                        <GeoLocationKeyGenerator onKeyGenerated={setLocationKey} disabled={isEncoding} mode="encode" />
-                      </div>
-
-                      {locationKey && (
-                        <div className="bg-slate-700/30 rounded-md flex items-center px-3 py-2 overflow-hidden">
-                          <span className="font-mono text-blue-300 text-sm truncate">{locationKey}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
 
             <Button
@@ -220,9 +176,7 @@ const Encoder = () => {
                 <Alert className="bg-gradient-to-r from-blue-900/40 to-indigo-900/40 border border-blue-700/30 rounded-lg">
                   <AlertDescription className="text-blue-100">
                     <div className="space-y-2">
-                      <p>
-                        Pesan berhasil disisipkan menggunakan algoritma <span className="font-semibold">{algorithm}</span>!
-                      </p>
+                      <p>Pesan berhasil disisipkan menggunakan algoritma berbasis lokasi!</p>
                       <p>Simpan kunci lokasi Anda:</p>
                       <span className="font-mono bg-slate-800/80 px-3 py-1 rounded text-xs text-blue-300 inline-block">{locationKey}</span>
                     </div>

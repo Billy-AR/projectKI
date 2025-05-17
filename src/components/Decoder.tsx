@@ -1,15 +1,12 @@
 import { useState } from "react";
 import { Button } from "./ui/button";
-// import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Progress } from "./ui/progress";
-import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { toast } from "react-toastify";
 import { motion } from "framer-motion";
 import ImageHandler from "./ImageHandler";
 import { decodeMessage } from "../lib/steganography";
-import type { SteganographyAlgorithm } from "../Types";
 import GeoLocationKeyGenerator from "./GeoLocationGenerator";
 
 const Decoder = () => {
@@ -18,7 +15,6 @@ const Decoder = () => {
   const [extractedMessage, setExtractedMessage] = useState<string>("");
   const [isDecoding, setIsDecoding] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
-  const [algorithm, setAlgorithm] = useState<SteganographyAlgorithm>("DCT");
 
   const handleImageUpload = (file: File) => {
     if (!file) return;
@@ -49,7 +45,7 @@ const Decoder = () => {
 
     try {
       // Process decoding with selected algorithm
-      const message = await decodeMessage(stegoImage, locationKey, (progress: number) => setProgress(progress), algorithm);
+      const message = await decodeMessage(stegoImage, locationKey, (progress: number) => setProgress(progress), "LocationBased");
 
       setProgress(100);
 
@@ -77,35 +73,16 @@ const Decoder = () => {
               </Label>
               <ImageHandler onImageSelected={handleImageUpload} imagePreview={stegoImage} disabled={isDecoding} />
             </div>
-            <div>
-              <Label htmlFor="algorithm" className="text-blue-100 font-medium mb-2 block">
-                Algoritma Steganografi
-              </Label>
-              <RadioGroup defaultValue="DCT" value={algorithm} onValueChange={(value) => setAlgorithm(value as SteganographyAlgorithm)} className="flex gap-6 mb-4" disabled={isDecoding}>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="PVD" id="d2" />
-                  <Label htmlFor="d2">PVD</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="DCT" id="d3" />
-                  <Label htmlFor="d3">DCT</Label>
-                </div>
-              </RadioGroup>
-            </div>
+
             <div>
               <Label htmlFor="decode-key" className="text-blue-100 font-medium mb-2 block">
                 Kunci Lokasi
               </Label>
-              <div className="flex gap-2 items-center mb-2">
+              <div className="flex gap-2">
                 <GeoLocationKeyGenerator onKeyGenerated={setLocationKey} disabled={isDecoding} mode="decode" />
               </div>
-
-              {locationKey && (
-                <div className="bg-slate-700/30 rounded-md flex items-center px-3 py-2 overflow-hidden">
-                  <span className="font-mono text-blue-300 text-sm truncate">{locationKey}</span>
-                </div>
-              )}
             </div>
+
             <Button
               onClick={handleDecode}
               disabled={isDecoding || !stegoImage || !locationKey}
@@ -123,6 +100,7 @@ const Decoder = () => {
                 "Ekstrak Pesan"
               )}
             </Button>
+
             {isDecoding && (
               <div className="space-y-1">
                 <Progress value={progress} className="h-1.5 bg-slate-700/50 rounded-full overflow-hidden bg-gradient-to-r from-blue-400 to-indigo-400" />
@@ -158,7 +136,7 @@ const Decoder = () => {
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      Pesan berhasil diekstrak menggunakan algoritma <span className="font-semibold">{algorithm}</span>!
+                      Pesan berhasil diekstrak menggunakan algoritma berbasis lokasi!
                     </div>
                   </AlertDescription>
                 </Alert>

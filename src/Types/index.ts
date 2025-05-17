@@ -1,5 +1,3 @@
-// Types.ts
-
 export interface LocationKeyOptions {
   length: number;
   includeUppercase: boolean;
@@ -25,23 +23,21 @@ export interface LocationKeyGeneratorProps {
 
 export type ProgressCallback = (progress: number) => void;
 
-// New types for steganography algorithm selection
-export type SteganographyAlgorithm = "LSB" | "PVD" | "DCT";
+// Define SteganographyAlgorithm type correctly
+export type SteganographyAlgorithm = "LocationBased";
 
 // Settings for steganography process
 export interface SteganographySettings {
   algorithm: SteganographyAlgorithm;
-  quality?: number; // For DCT algorithm
+  quality?: number; // For backward compatibility
 }
 
-// Hapus definisi duplikat
-// Hapus definisi duplikat
 export interface GeoLocationKeyProps {
   onKeyGenerated: (key: string) => void;
   disabled?: boolean;
-  mode?: "encode" | "decode"; // Tambahkan mode dengan nilai default
+  mode?: "encode" | "decode";
 }
-// Tambahkan interface untuk lokasi tersimpan
+
 export interface SavedLocation {
   name: string;
   lat: number;

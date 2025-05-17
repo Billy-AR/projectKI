@@ -48,27 +48,28 @@ function App() {
 
         <div className="mt-8 p-6 bg-slate-800/40 backdrop-blur-sm rounded-xl border border-slate-700/40">
           <h2 className="text-xl font-semibold mb-4 text-blue-300">Tentang Algoritma Steganografi</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <h3 className="font-semibold text-blue-200">PVD (Pixel Value Differencing)</h3>
-              <p className="text-slate-300 text-sm">PVD memanfaatkan perbedaan nilai antar piksel untuk menyisipkan data. Area dengan kontras tinggi dapat menyimpan lebih banyak bit tanpa terdeteksi oleh mata manusia.</p>
-              <ul className="text-xs text-slate-400 list-disc pl-4 space-y-1">
-                <li>Lebih tahan terhadap kompresi dan manipulasi gambar</li>
-                <li>Kapasitas penyimpanan lebih tinggi dari LSB</li>
-                <li>Menyesuaikan penyisipan berdasarkan karakteristik gambar</li>
-              </ul>
-            </div>
-            <div className="space-y-2">
-              <h3 className="font-semibold text-blue-200">DCT (Discrete Cosine Transform)</h3>
-              <p className="text-slate-300 text-sm">DCT bekerja dalam domain frekuensi dengan memanipulasi koefisien DCT dalam blok 8x8 piksel. Teknik ini mirip dengan yang digunakan dalam kompresi JPEG.</p>
-              <ul className="text-xs text-slate-400 list-disc pl-4 space-y-1">
-                <li>Tahan terhadap berbagai jenis serangan statistik</li>
-                <li>Kompatibel dengan format JPEG</li>
-                <li>Lebih sulit untuk dideteksi oleh analisis steganalisis</li>
-                <li>Direkomendasikan untuk penggunaan yang memerlukan keamanan tinggi</li>
-              </ul>
-            </div>
+          <div className="space-y-2">
+            <h3 className="font-semibold text-blue-200">Berbasis Lokasi Geografis</h3>
+            <p className="text-slate-300 text-sm">Algoritma steganografi khusus yang dioptimalkan untuk bekerja dengan kunci lokasi geografis. Menggunakan metode penyembunyian pesan yang andal dan sederhana.</p>
+            <ul className="text-xs text-slate-400 list-disc pl-4 space-y-1">
+              <li>Dirancang khusus untuk bekerja dengan sistem kunci lokasi geografis</li>
+              <li>Menggunakan format PNG untuk kualitas gambar tanpa kompresi</li>
+              <li>Tingkat keberhasilan ekstraksi pesan yang tinggi</li>
+              <li>Menyediakan validasi kunci untuk memastikan lokasi yang benar</li>
+              <li>Meminimalkan distorsi visual pada gambar hasil</li>
+            </ul>
           </div>
+        </div>
+
+        <div className="mt-6">
+          <h3 className="font-semibold text-blue-200">Berbasis Lokasi Geografis</h3>
+          <p className="text-slate-300 text-sm">Sistem ini menggunakan fitur geolokasi untuk menghasilkan kunci lokasi berdasarkan posisi fisik. Pesan hanya dapat dibuka ketika pengguna berada dalam radius lokasi yang ditentukan.</p>
+          <ul className="text-xs text-slate-400 list-disc pl-4 space-y-1 mt-2">
+            <li>Tambahkan keamanan berbasis lokasi geografis</li>
+            <li>Simpan lokasi dengan radius tertentu sebagai parameter kunci</li>
+            <li>Pesan hanya dapat dibuka saat berada di lokasi yang sama</li>
+            <li>Ideal untuk berbagi pesan yang terikat dengan lokasi tertentu</li>
+          </ul>
         </div>
 
         {/* Add new section here */}
