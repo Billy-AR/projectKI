@@ -40,7 +40,15 @@ export interface GeoLocationKeyProps {
 
 export interface SavedLocation {
   name: string;
+  key: string;
   lat: number;
   lng: number;
   radius: number;
+  createdAt: string;
+}
+
+export interface ImageHandlerProps {
+  onImageSelected: (file: File) => void;
+  imagePreview: string | null;
+  disabled?: boolean;
 }

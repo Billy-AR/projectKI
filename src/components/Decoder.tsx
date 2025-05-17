@@ -8,7 +8,6 @@ import { motion } from "framer-motion";
 import ImageHandler from "./ImageHandler";
 import { decodeMessage } from "../lib/steganography";
 import GeoLocationKeyGenerator from "./GeoLocationGenerator";
-
 const Decoder = () => {
   const [locationKey, setLocationKey] = useState<string>("");
   const [stegoImage, setStegoImage] = useState<string | null>(null);
@@ -78,9 +77,13 @@ const Decoder = () => {
               <Label htmlFor="decode-key" className="text-blue-100 font-medium mb-2 block">
                 Kunci Lokasi
               </Label>
-              <div className="flex gap-2">
-                <GeoLocationKeyGenerator onKeyGenerated={setLocationKey} disabled={isDecoding} mode="decode" />
-              </div>
+              <GeoLocationKeyGenerator onKeyGenerated={setLocationKey} disabled={isDecoding} mode="decode" />
+
+              {locationKey && (
+                <div className="bg-slate-700/30 rounded-md flex items-center px-3 py-2 overflow-hidden mt-2">
+                  <span className="font-mono text-blue-300 text-sm truncate">{locationKey}</span>
+                </div>
+              )}
             </div>
 
             <Button

@@ -113,11 +113,10 @@ const Encoder = () => {
               <Label htmlFor="locationKey" className="text-blue-100 font-medium mb-2 block">
                 Kunci Lokasi
               </Label>
-              <div className="flex gap-2 items-center mb-2">
-                <GeoLocationKeyGenerator onKeyGenerated={setLocationKey} disabled={isEncoding} mode="encode" />
-              </div>
+              <GeoLocationKeyGenerator onKeyGenerated={setLocationKey} disabled={isEncoding} mode="encode" />
+
               {locationKey && (
-                <div className="bg-slate-700/30 rounded-md flex items-center px-3 py-2 overflow-hidden">
+                <div className="bg-slate-700/30 rounded-md flex items-center px-3 py-2 overflow-hidden mt-2">
                   <span className="font-mono text-blue-300 text-sm truncate">{locationKey}</span>
                 </div>
               )}

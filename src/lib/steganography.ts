@@ -1,4 +1,4 @@
-import type { PixelPosition, ProgressCallback, SteganographyAlgorithm, SteganographySettings } from "../Types";
+import type { PixelPosition, ProgressCallback } from "../Types";
 
 // Text to binary and binary to text functions
 const textToBinary = (text: string): string => {
@@ -82,19 +82,6 @@ const encodeLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingCont
         const pixelIndex = (pos.y * canvas.width + pos.x) * 4;
 
         if (lengthBinary[i] === "1") {
-          data[pixelIndex + 2] = (data[pixelIndex + 2] & 254) | 1;
-        } else {
-          data[pixelIndex + 2] = data[pixelIndex + 2] & 254;
-        }
-      }
-
-      // Add redundancy marker for message end (16 bits)
-      const endPattern = "0101010101010101";
-      for (let i = 0; i < endPattern.length; i++) {
-        const pos = positions[i + 32 + messageBinary.length]; // After header + length + message
-        const pixelIndex = (pos.y * canvas.width + pos.x) * 4;
-
-        if (endPattern[i] === "1") {
           data[pixelIndex + 2] = (data[pixelIndex + 2] & 254) | 1;
         } else {
           data[pixelIndex + 2] = data[pixelIndex + 2] & 254;
@@ -226,7 +213,7 @@ const decodeLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingCont
 };
 
 // Main encode function
-export const encodeMessage = (imageDataUrl: string, message: string, locationKey: string, onProgress?: ProgressCallback, settings: SteganographySettings = { algorithm: "LocationBased" }): Promise<string> => {
+export const encodeMessage = (imageDataUrl: string, message: string, locationKey: string, onProgress?: ProgressCallback, settings?: any): Promise<string> => {
   return new Promise((resolve, reject) => {
     try {
       // Validate input
@@ -239,7 +226,6 @@ export const encodeMessage = (imageDataUrl: string, message: string, locationKey
       console.log("Encoding with:", {
         messageLength: message.length,
         keyLength: locationKey.length,
-        algorithm: settings.algorithm,
       });
 
       const image = new Image();
@@ -278,7 +264,7 @@ export const encodeMessage = (imageDataUrl: string, message: string, locationKey
 };
 
 // Main decode function
-export const decodeMessage = (imageDataUrl: string, locationKey: string, onProgress?: ProgressCallback, algorithm: SteganographyAlgorithm = "LocationBased"): Promise<string> => {
+export const decodeMessage = (imageDataUrl: string, locationKey: string, onProgress?: ProgressCallback, algorithm?: string): Promise<string> => {
   return new Promise((resolve, reject) => {
     try {
       // Validate input
@@ -290,7 +276,6 @@ export const decodeMessage = (imageDataUrl: string, locationKey: string, onProgr
       // Log for debugging
       console.log("Decoding with:", {
         keyLength: locationKey.length,
-        algorithm: algorithm,
       });
 
       const image = new Image();
