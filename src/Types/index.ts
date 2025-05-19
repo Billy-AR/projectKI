@@ -52,3 +52,32 @@ export interface ImageHandlerProps {
   imagePreview: string | null;
   disabled?: boolean;
 }
+
+// Tambahkan ke existing types
+export interface PVDRange {
+  min: number;
+  max: number;
+  capacity: number;
+}
+
+export interface PixelPair {
+  pos1: PixelPosition;
+  pos2: PixelPosition;
+}
+
+export interface PVDEmbedResult {
+  newPixel1: number;
+  newPixel2: number;
+}
+
+export interface ImageAnalysis {
+  averageComplexity: number;
+  textureMap: number[][];
+  edgeMap: boolean[][];
+}
+
+// Enhanced existing PixelPosition if needed
+export interface PixelPosition {
+  x: number;
+  y: number;
+}

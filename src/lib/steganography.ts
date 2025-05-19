@@ -1,24 +1,46 @@
-import type { PixelPosition, ProgressCallback } from "../Types";
+import type { PixelPosition, ProgressCallback, PVDRange, PixelPair, PVDEmbedResult } from "../Types";
 
-// Text to binary and binary to text functions
+// PVD Range Table - tingkat kapasitas berdasarkan perbedaan nilai pixel
+const PVD_RANGE_TABLE: readonly PVDRange[] = [
+  { min: 0, max: 7, capacity: 3 }, // 2^3 = 8 levels
+  { min: 8, max: 15, capacity: 3 }, // 2^3 = 8 levels
+  { min: 16, max: 31, capacity: 4 }, // 2^4 = 16 levels
+  { min: 32, max: 63, capacity: 5 }, // 2^5 = 32 levels
+  { min: 64, max: 127, capacity: 6 }, // 2^6 = 64 levels
+  { min: 128, max: 255, capacity: 7 }, // 2^7 = 128 levels
+] as const;
+
+// Existing text conversion functions (unchanged)
 const textToBinary = (text: string): string => {
   return text
     .split("")
-    .map((char) => {
-      return char.charCodeAt(0).toString(2).padStart(8, "0");
-    })
+    .map((char: string) => char.charCodeAt(0).toString(2).padStart(8, "0"))
     .join("");
 };
 
 const binaryToText = (binary: string): string => {
-  const bytes = binary.match(/.{1,8}/g) || [];
-  return bytes.map((byte) => String.fromCharCode(parseInt(byte, 2))).join("");
+  const bytes: string[] = binary.match(/.{1,8}/g) || [];
+  return bytes.map((byte: string) => String.fromCharCode(parseInt(byte, 2))).join("");
 };
 
-// Location key hash function - creates deterministic pixel positions from location key
-const hashLocationKey = (key: string, imageWidth: number, imageHeight: number): PixelPosition[] => {
-  let positions: PixelPosition[] = [];
-  let seed = Array.from(key).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+// Get range information based on pixel difference
+const getRangeInfo = (diff: number): PVDRange => {
+  const absDiff: number = Math.abs(diff);
+
+  for (const range of PVD_RANGE_TABLE) {
+    if (absDiff >= range.min && absDiff <= range.max) {
+      return range;
+    }
+  }
+
+  // Fallback to last range
+  return PVD_RANGE_TABLE[PVD_RANGE_TABLE.length - 1];
+};
+
+// Generate pixel pairs based on location key
+const generatePixelPairs = (locationKey: string, width: number, height: number): PixelPair[] => {
+  const pairs: PixelPair[] = [];
+  let seed: number = Array.from(locationKey).reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
 
   // PRNG function
   const prng = (): number => {
@@ -26,212 +48,308 @@ const hashLocationKey = (key: string, imageWidth: number, imageHeight: number): 
     return seed / 233280;
   };
 
-  const positionsCount = Math.min((imageWidth * imageHeight) / 4, 10000);
+  const maxPairs: number = Math.min(5000, Math.floor((width * height) / 8));
 
-  for (let i = 0; i < positionsCount; i++) {
-    const x = Math.floor(prng() * imageWidth);
-    const y = Math.floor(prng() * imageHeight);
-    positions.push({ x, y });
+  for (let i = 0; i < maxPairs; i++) {
+    const x1: number = Math.floor(prng() * (width - 1));
+    const y1: number = Math.floor(prng() * height);
+    const x2: number = Math.min(x1 + 1, width - 1); // Adjacent horizontal pixel
+    const y2: number = y1;
+
+    pairs.push({
+      pos1: { x: x1, y: y1 },
+      pos2: { x: x2, y: y2 },
+    });
   }
 
-  return positions;
+  return pairs;
 };
 
-// Simple location-based steganography algorithm
-const encodeLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, messageBinary: string, locationKey: string, onProgress?: ProgressCallback): Promise<string> => {
-  return new Promise((resolve, reject) => {
+// Embed message bits into pixel pair using PVD algorithm
+const embedInPixelPair = (pixel1: number, pixel2: number, messageBits: string, rangeInfo: PVDRange): PVDEmbedResult => {
+  const diff: number = pixel1 - pixel2;
+
+  // Convert message bits to decimal value
+  const messageValue: number = parseInt(messageBits, 2);
+
+  // Calculate new difference based on embedded message
+  const newAbsDiff: number = rangeInfo.min + messageValue;
+  const newDiff: number = diff >= 0 ? newAbsDiff : -newAbsDiff;
+
+  // Calculate new pixel values to achieve target difference
+  let newPixel1: number;
+  let newPixel2: number;
+
+  if (Math.abs(newDiff - diff) % 2 === 0) {
+    // Adjust both pixels equally
+    const adjustment: number = Math.floor((newDiff - diff) / 2);
+    newPixel1 = pixel1 + adjustment;
+    newPixel2 = pixel2 - adjustment;
+  } else {
+    // Adjust pixel1 by +1 more to handle odd differences
+    const adjustment: number = Math.floor((newDiff - diff) / 2);
+    newPixel1 = pixel1 + adjustment + Math.sign(newDiff - diff);
+    newPixel2 = pixel2 - adjustment;
+  }
+
+  // Clamp pixel values to valid range [0, 255]
+  newPixel1 = Math.max(0, Math.min(255, newPixel1));
+  newPixel2 = Math.max(0, Math.min(255, newPixel2));
+
+  return { newPixel1, newPixel2 };
+};
+
+// Extract message bits from pixel pair
+const extractFromPixelPair = (pixel1: number, pixel2: number): string => {
+  const diff: number = pixel1 - pixel2;
+  const absDiff: number = Math.abs(diff);
+  const rangeInfo: PVDRange = getRangeInfo(diff);
+
+  // Calculate the embedded value
+  const embeddedValue: number = absDiff - rangeInfo.min;
+
+  // Convert to binary with proper padding
+  const binaryValue: string = embeddedValue.toString(2).padStart(rangeInfo.capacity, "0");
+
+  return binaryValue;
+};
+
+// PVD-based encoding algorithm
+const encodePVDLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, messageBinary: string, locationKey: string, onProgress?: ProgressCallback): Promise<string> => {
+  return new Promise<string>((resolve, reject) => {
     try {
-      // Get pixel data
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
+      const imageData: ImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data: Uint8ClampedArray = imageData.data;
 
-      // Generate pixel positions from location key
-      const positions = hashLocationKey(locationKey, canvas.width, canvas.height);
+      // Generate pixel pairs berdasarkan location key
+      const pixelPairs: PixelPair[] = generatePixelPairs(locationKey, canvas.width, canvas.height);
 
-      // Make sure we have enough pixels for the message
-      if (positions.length < messageBinary.length + 48) {
-        // 48 = header + length
-        reject(new Error("Gambar terlalu kecil untuk pesan ini"));
-        return;
-      }
+      // Prepare message with header and length
+      const headerPattern: string = "1010101010101010";
+      const lengthBinary: string = messageBinary.length.toString(2).padStart(16, "0");
+      const totalMessage: string = headerPattern + lengthBinary + messageBinary;
 
-      // Add a known header pattern for validation (16 bits)
-      const headerPattern = "1010101010101010";
+      let messageIndex: number = 0;
+      let processedPairs: number = 0;
 
-      // First encode the header pattern
-      for (let i = 0; i < headerPattern.length; i++) {
-        if (i % 5 === 0 && onProgress) {
-          onProgress(Math.floor((i / (messageBinary.length + 32)) * 10));
+      for (let pairIndex = 0; pairIndex < pixelPairs.length && messageIndex < totalMessage.length; pairIndex++) {
+        const pair: PixelPair = pixelPairs[pairIndex];
+        const pos1: PixelPosition = pair.pos1;
+        const pos2: PixelPosition = pair.pos2;
+
+        // Get pixel indices (blue channel for consistency with LSB version)
+        const pixelIndex1: number = (pos1.y * canvas.width + pos1.x) * 4 + 2;
+        const pixelIndex2: number = (pos2.y * canvas.width + pos2.x) * 4 + 2;
+
+        const pixel1: number = data[pixelIndex1];
+        const pixel2: number = data[pixelIndex2];
+
+        // Get embedding capacity for this pixel pair
+        const diff: number = pixel1 - pixel2;
+        const rangeInfo: PVDRange = getRangeInfo(diff);
+
+        // Handle remaining bits if not enough message left
+        if (messageIndex + rangeInfo.capacity > totalMessage.length) {
+          const remainingBits: number = totalMessage.length - messageIndex;
+          if (remainingBits > 0) {
+            const messageBits: string = totalMessage.substring(messageIndex, messageIndex + remainingBits);
+            const paddedBits: string = messageBits.padEnd(rangeInfo.capacity, "0");
+            const result: PVDEmbedResult = embedInPixelPair(pixel1, pixel2, paddedBits, rangeInfo);
+
+            data[pixelIndex1] = result.newPixel1;
+            data[pixelIndex2] = result.newPixel2;
+          }
+          break;
         }
 
-        const pos = positions[i];
-        const pixelIndex = (pos.y * canvas.width + pos.x) * 4;
+        // Extract message bits for this pair
+        const messageBits: string = totalMessage.substring(messageIndex, messageIndex + rangeInfo.capacity);
 
-        // Encode bit in blue channel LSB (least visible)
-        if (headerPattern[i] === "1") {
-          data[pixelIndex + 2] = (data[pixelIndex + 2] & 254) | 1; // Set LSB to 1
-        } else {
-          data[pixelIndex + 2] = data[pixelIndex + 2] & 254; // Set LSB to 0
-        }
-      }
+        // Embed bits dalam pixel pair
+        const result: PVDEmbedResult = embedInPixelPair(pixel1, pixel2, messageBits, rangeInfo);
 
-      // Encode message length as 16-bit binary after header pattern
-      const lengthBinary = messageBinary.length.toString(2).padStart(16, "0");
-      for (let i = 0; i < lengthBinary.length; i++) {
-        const pos = positions[i + 16]; // Start after header
-        const pixelIndex = (pos.y * canvas.width + pos.x) * 4;
+        // Update pixel values
+        data[pixelIndex1] = result.newPixel1;
+        data[pixelIndex2] = result.newPixel2;
 
-        if (lengthBinary[i] === "1") {
-          data[pixelIndex + 2] = (data[pixelIndex + 2] & 254) | 1;
-        } else {
-          data[pixelIndex + 2] = data[pixelIndex + 2] & 254;
-        }
-      }
+        messageIndex += rangeInfo.capacity;
+        processedPairs++;
 
-      // Now encode the actual message
-      for (let i = 0; i < messageBinary.length; i++) {
-        if (i % 20 === 0 && onProgress) {
-          onProgress(10 + Math.min(85, Math.floor((i / messageBinary.length) * 90)));
-        }
-
-        const pos = positions[i + 32]; // Start after header + length
-        const pixelIndex = (pos.y * canvas.width + pos.x) * 4;
-
-        // Simple LSB encoding in blue channel
-        if (messageBinary[i] === "1") {
-          data[pixelIndex + 2] = (data[pixelIndex + 2] & 254) | 1; // Set LSB to 1
-        } else {
-          data[pixelIndex + 2] = data[pixelIndex + 2] & 254; // Set LSB to 0
+        // Update progress
+        if (processedPairs % 50 === 0 && onProgress) {
+          onProgress(Math.min(95, Math.floor((messageIndex / totalMessage.length) * 100)));
         }
       }
 
       // Apply changes to canvas
       ctx.putImageData(imageData, 0, 0);
 
-      onProgress && onProgress(100);
-      // Use PNG for lossless storage
+      if (onProgress) onProgress(100);
       resolve(canvas.toDataURL("image/png"));
     } catch (error) {
-      reject(error);
+      reject(error instanceof Error ? error : new Error(String(error)));
     }
   });
 };
 
-// Matching decoder for location-based algorithm
-const decodeLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, locationKey: string, onProgress?: ProgressCallback): Promise<string> => {
-  return new Promise((resolve, reject) => {
+// PVD-based decoding algorithm
+const decodePVDLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, locationKey: string, onProgress?: ProgressCallback): Promise<string> => {
+  return new Promise<string>((resolve, reject) => {
     try {
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
+      const imageData: ImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data: Uint8ClampedArray = imageData.data;
 
-      // Get pixel positions from location key
-      const positions = hashLocationKey(locationKey, canvas.width, canvas.height);
+      // Generate same pixel pairs using the location key
+      const pixelPairs: PixelPair[] = generatePixelPairs(locationKey, canvas.width, canvas.height);
 
-      // First, check header pattern
-      const expectedHeader = "1010101010101010";
-      let headerFound = "";
+      let extractedBinary: string = "";
+      let processedPairs: number = 0;
 
-      for (let i = 0; i < 16 && i < positions.length; i++) {
-        if (i % 5 === 0 && onProgress) {
-          onProgress(Math.floor((i / 16) * 10));
-        }
+      // Extract header (16 bits) and message length (16 bits) first
+      for (let pairIndex = 0; pairIndex < pixelPairs.length && extractedBinary.length < 32; pairIndex++) {
+        const pair: PixelPair = pixelPairs[pairIndex];
+        const pos1: PixelPosition = pair.pos1;
+        const pos2: PixelPosition = pair.pos2;
 
-        const pos = positions[i];
-        const pixelIndex = (pos.y * canvas.width + pos.x) * 4;
+        // Get pixel values
+        const pixelIndex1: number = (pos1.y * canvas.width + pos1.x) * 4 + 2;
+        const pixelIndex2: number = (pos2.y * canvas.width + pos2.x) * 4 + 2;
 
-        // Read LSB from blue channel
-        headerFound += data[pixelIndex + 2] & 1 ? "1" : "0";
+        const pixel1: number = data[pixelIndex1];
+        const pixel2: number = data[pixelIndex2];
+
+        // Extract bits from this pair
+        const extractedBits: string = extractFromPixelPair(pixel1, pixel2);
+        extractedBinary += extractedBits;
+
+        processedPairs++;
       }
 
-      // Check if header matches (with tolerance)
-      let headerMatchCount = 0;
-      for (let i = 0; i < expectedHeader.length; i++) {
-        if (expectedHeader[i] === headerFound[i]) {
-          headerMatchCount++;
-        }
+      // Validate header pattern
+      const header: string = extractedBinary.substring(0, 16);
+      const expectedHeader: string = "1010101010101010";
+      let headerMatch: number = 0;
+
+      for (let i = 0; i < 16; i++) {
+        if (header[i] === expectedHeader[i]) headerMatch++;
       }
 
-      // If less than 75% match, probably wrong key
-      if (headerMatchCount < 12) {
-        resolve(""); // Empty string indicates wrong key
+      // If header doesn't match (less than 75%), wrong key
+      if (headerMatch < 12) {
+        resolve("");
         return;
       }
 
       // Extract message length
-      let lengthBinary = "";
-      for (let i = 0; i < 16; i++) {
-        const pos = positions[i + 16];
-        const pixelIndex = (pos.y * canvas.width + pos.x) * 4;
-        lengthBinary += data[pixelIndex + 2] & 1 ? "1" : "0";
+      const lengthBinary: string = extractedBinary.substring(16, 32);
+      let messageLength: number = parseInt(lengthBinary, 2);
+
+      // Validate message length
+      if (isNaN(messageLength) || messageLength <= 0 || messageLength > 50000) {
+        messageLength = Math.min(1000, (pixelPairs.length - processedPairs) * 3); // Fallback
       }
 
-      // Parse message length with safety checks
-      let messageLength = 0;
-      try {
-        messageLength = parseInt(lengthBinary, 2);
-        // Sanity check
-        if (isNaN(messageLength) || messageLength <= 0 || messageLength > positions.length - 48) {
-          messageLength = Math.min(1000, positions.length - 48); // Fallback value
+      // Extract the actual message
+      const totalBitsNeeded: number = 32 + messageLength;
+
+      for (let pairIndex = processedPairs; pairIndex < pixelPairs.length && extractedBinary.length < totalBitsNeeded; pairIndex++) {
+        const pair: PixelPair = pixelPairs[pairIndex];
+        const pos1: PixelPosition = pair.pos1;
+        const pos2: PixelPosition = pair.pos2;
+
+        const pixelIndex1: number = (pos1.y * canvas.width + pos1.x) * 4 + 2;
+        const pixelIndex2: number = (pos2.y * canvas.width + pos2.x) * 4 + 2;
+
+        const pixel1: number = data[pixelIndex1];
+        const pixel2: number = data[pixelIndex2];
+
+        const extractedBits: string = extractFromPixelPair(pixel1, pixel2);
+        extractedBinary += extractedBits;
+
+        // Update progress
+        if (pairIndex % 50 === 0 && onProgress) {
+          onProgress(Math.floor((extractedBinary.length / totalBitsNeeded) * 100));
         }
-      } catch (e) {
-        messageLength = Math.min(1000, positions.length - 48); // Fallback value
       }
 
-      // Extract the message
-      let extractedBinary = "";
-      for (let i = 0; i < messageLength; i++) {
-        if (i % 50 === 0 && onProgress) {
-          onProgress(10 + Math.floor((i / messageLength) * 90));
-        }
+      // Extract actual message binary
+      const messageBinary: string = extractedBinary.substring(32, 32 + messageLength);
+      const extractedText: string = binaryToText(messageBinary);
 
-        const pos = positions[i + 32]; // After header + length
-        const pixelIndex = (pos.y * canvas.width + pos.x) * 4;
+      if (onProgress) onProgress(100);
 
-        // Read from blue channel
-        extractedBinary += data[pixelIndex + 2] & 1 ? "1" : "0";
-      }
-
-      // Convert binary to text
-      const extractedText = binaryToText(extractedBinary);
-
-      // Check for START and END markers (from your encodeMessage function)
-      const startIndex = extractedText.indexOf("START");
-      const endIndex = extractedText.indexOf("END");
-
-      onProgress && onProgress(100);
+      // Check for START/END markers
+      const startIndex: number = extractedText.indexOf("START");
+      const endIndex: number = extractedText.indexOf("END");
 
       if (startIndex !== -1 && endIndex !== -1 && startIndex < endIndex) {
         resolve(extractedText.substring(startIndex + 5, endIndex));
       } else {
-        // If no markers, return what we have (up to reasonable limit)
-        resolve(extractedText.substring(0, Math.min(200, extractedText.length)));
+        // Return cleaned text up to reasonable limit
+        const cleanText: string = extractedText.replace(/[^\x20-\x7E]/g, ""); // Remove non-printable chars
+        resolve(cleanText.substring(0, Math.min(200, cleanText.length)));
       }
     } catch (error) {
-      reject(error);
+      reject(error instanceof Error ? error : new Error(String(error)));
     }
   });
 };
 
-// Main encode function
+// Enhanced location key generation (unchanged from previous)
+export const generateLocationKey = (latitude: number, longitude: number): string => {
+  // Round coordinates to 3 decimal places (~100m grid)
+  const gridLat: number = Math.round(latitude * 1000) / 1000;
+  const gridLng: number = Math.round(longitude * 1000) / 1000;
+
+  // Create deterministic seed from coordinates
+  const locationSeed: string = `${gridLat},${gridLng}`;
+
+  // Simple hash implementation
+  let hash: number = 0;
+  for (let i = 0; i < locationSeed.length; i++) {
+    const char: number = locationSeed.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+
+  // Generate key with allowed characters
+  const chars: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let key: string = "";
+
+  // Ensure hash is always positive
+  const positiveHash: number = Math.abs(hash);
+
+  // Generate deterministic key
+  for (let i = 0; i < 16; i++) {
+    const position: number = (positiveHash + i * 13) % chars.length;
+    key += chars.charAt(position);
+  }
+
+  return key;
+};
+
+// Main encode function with PVD
 export const encodeMessage = (imageDataUrl: string, message: string, locationKey: string, onProgress?: ProgressCallback): Promise<string> => {
-  return new Promise((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
     try {
-      // Validate input
+      // Input validation
       if (!imageDataUrl || !message || !locationKey) {
         reject(new Error("Parameter tidak lengkap: gambar, pesan, dan kunci lokasi diperlukan"));
         return;
       }
 
-      // Log input for debugging
-      console.log("Encoding with:", {
+      // Log for debugging
+      console.log("PVD Encoding with:", {
         messageLength: message.length,
         keyLength: locationKey.length,
+        algorithm: "PVD",
       });
 
-      const image = new Image();
-      image.onload = () => {
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
+      const image: HTMLImageElement = new Image();
+
+      image.onload = (): void => {
+        const canvas: HTMLCanvasElement = document.createElement("canvas");
+        const ctx: CanvasRenderingContext2D | null = canvas.getContext("2d");
 
         if (!ctx) {
           reject(new Error("Tidak dapat membuat context canvas"));
@@ -242,46 +360,48 @@ export const encodeMessage = (imageDataUrl: string, message: string, locationKey
         canvas.height = image.height;
         ctx.drawImage(image, 0, 0);
 
-        // Add message markers for easier extraction
-        const messageBinary = textToBinary("START" + message + "END");
+        // Convert message to binary with START/END markers
+        const messageBinary: string = textToBinary("START" + message + "END");
         console.log("Binary message length:", messageBinary.length);
 
-        // Use location-based algorithm
-        encodeLocationBased(canvas, ctx, messageBinary, locationKey, onProgress).then(resolve).catch(reject);
+        // Use PVD algorithm for encoding
+        encodePVDLocationBased(canvas, ctx, messageBinary, locationKey, onProgress).then(resolve).catch(reject);
       };
 
-      image.onerror = (e) => {
-        console.error("Image load error:", e);
+      image.onerror = (): void => {
+        console.error("Image load error");
         reject(new Error("Gagal memuat gambar"));
       };
 
       image.src = imageDataUrl;
     } catch (error) {
       console.error("Encoding error:", error);
-      reject(error);
+      reject(error instanceof Error ? error : new Error(String(error)));
     }
   });
 };
 
-// Main decode function
+// Main decode function with PVD
 export const decodeMessage = (imageDataUrl: string, locationKey: string, onProgress?: ProgressCallback): Promise<string> => {
-  return new Promise((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
     try {
-      // Validate input
+      // Input validation
       if (!imageDataUrl || !locationKey) {
         reject(new Error("Parameter tidak lengkap: gambar dan kunci lokasi diperlukan"));
         return;
       }
 
       // Log for debugging
-      console.log("Decoding with:", {
+      console.log("PVD Decoding with:", {
         keyLength: locationKey.length,
+        algorithm: "PVD",
       });
 
-      const image = new Image();
-      image.onload = () => {
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
+      const image: HTMLImageElement = new Image();
+
+      image.onload = (): void => {
+        const canvas: HTMLCanvasElement = document.createElement("canvas");
+        const ctx: CanvasRenderingContext2D | null = canvas.getContext("2d");
 
         if (!ctx) {
           reject(new Error("Tidak dapat membuat context canvas"));
@@ -292,53 +412,19 @@ export const decodeMessage = (imageDataUrl: string, locationKey: string, onProgr
         canvas.height = image.height;
         ctx.drawImage(image, 0, 0);
 
-        // Use location-based algorithm for decoding
-        decodeLocationBased(canvas, ctx, locationKey, onProgress).then(resolve).catch(reject);
+        // Use PVD algorithm for decoding
+        decodePVDLocationBased(canvas, ctx, locationKey, onProgress).then(resolve).catch(reject);
       };
 
-      image.onerror = (e) => {
-        console.error("Image load error:", e);
+      image.onerror = (): void => {
+        console.error("Image load error");
         reject(new Error("Gagal memuat gambar"));
       };
 
       image.src = imageDataUrl;
     } catch (error) {
       console.error("Decoding error:", error);
-      reject(error);
+      reject(error instanceof Error ? error : new Error(String(error)));
     }
   });
-};
-
-// Generate random location key (though you'll primarily use geolocation)
-// Tambahkan fungsi ini ke file Anda
-export const generateLocationKey = (latitude: number, longitude: number): string => {
-  // 1. Bulatkan koordinat ke grid 3 digit desimal (sekitar 100m akurasi)
-  const gridLat = Math.round(latitude * 1000) / 1000;
-  const gridLng = Math.round(longitude * 1000) / 1000;
-
-  // 2. Buat seed HANYA dari koordinat yang sudah dibulatkan
-  const locationSeed = `${gridLat},${gridLng}`;
-
-  // 3. Implementasi hash sederhana yang konsisten
-  let hash = 0;
-  for (let i = 0; i < locationSeed.length; i++) {
-    const char = locationSeed.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash; // Convert to 32bit integer
-  }
-
-  // 4. Buat kunci dengan karakter yang diizinkan
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let key = "";
-
-  // Pastikan hash selalu positif
-  const positiveHash = Math.abs(hash);
-
-  // Gunakan algoritma deterministik dengan konstanta tetap
-  for (let i = 0; i < 16; i++) {
-    const position = (positiveHash + i * 13) % chars.length;
-    key += chars.charAt(position);
-  }
-
-  return key;
 };

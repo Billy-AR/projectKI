@@ -26,7 +26,6 @@ function App() {
             Penyisipan dan Ekstraksi Pesan dengan Geo Location
           </motion.p>
         </div>
-
         <div className="bg-slate-800/60 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 overflow-hidden">
           <div className="flex border-b border-slate-700/70">
             <button
@@ -45,34 +44,21 @@ function App() {
 
           <div className="p-6 md:p-8">{activeTab === "encode" ? <Encoder /> : <Decoder />}</div>
         </div>
-
-        <div className="mt-8 p-6 bg-slate-800/40 backdrop-blur-sm rounded-xl border border-slate-700/40">
-          <h2 className="text-xl font-semibold mb-4 text-blue-300">Tentang Algoritma Steganografi</h2>
-          <div className="space-y-2">
-            <h3 className="font-semibold text-blue-200">Berbasis Lokasi Geografis</h3>
-            <p className="text-slate-300 text-sm">Algoritma steganografi khusus yang dioptimalkan untuk bekerja dengan kunci lokasi geografis. Menggunakan metode penyembunyian pesan yang andal dan sederhana.</p>
-            <ul className="text-xs text-slate-400 list-disc pl-4 space-y-1">
-              <li>Dirancang khusus untuk bekerja dengan sistem kunci lokasi geografis</li>
-              <li>Menggunakan format PNG untuk kualitas gambar tanpa kompresi</li>
-              <li>Tingkat keberhasilan ekstraksi pesan yang tinggi</li>
-              <li>Menyediakan validasi kunci untuk memastikan lokasi yang benar</li>
-              <li>Meminimalkan distorsi visual pada gambar hasil</li>
-            </ul>
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <h3 className="font-semibold text-blue-200">Berbasis Lokasi Geografis</h3>
-          <p className="text-slate-300 text-sm">Sistem ini menggunakan fitur geolokasi untuk menghasilkan kunci lokasi berdasarkan posisi fisik. Pesan hanya dapat dibuka ketika pengguna berada dalam radius lokasi yang ditentukan.</p>
-          <ul className="text-xs text-slate-400 list-disc pl-4 space-y-1 mt-2">
-            <li>Tambahkan keamanan berbasis lokasi geografis</li>
-            <li>Simpan lokasi dengan radius tertentu sebagai parameter kunci</li>
-            <li>Pesan hanya dapat dibuka saat berada di lokasi yang sama</li>
-            <li>Ideal untuk berbagi pesan yang terikat dengan lokasi tertentu</li>
+        <h2 className="text-xl font-semibold mb-4 text-blue-300">Tentang Algoritma Steganografi PVD</h2>
+        <div className="space-y-2">
+          <h3 className="font-semibold text-blue-200">Pixel Value Differencing (PVD)</h3>
+          <p className="text-slate-300 text-sm">
+            Algoritma PVD menggunakan perbedaan nilai antara pixel berdekatan untuk menyembunyikan pesan. Kapasitas embedding secara otomatis menyesuaikan dengan kompleksitas area gambar, memberikan hasil yang optimal dan sulit dideteksi.
+          </p>
+          <ul className="text-xs text-slate-400 list-disc pl-4 space-y-1">
+            <li>Kapasitas adaptif: area smooth = kapasitas rendah, area tekstur = kapasitas tinggi</li>
+            <li>Terintegrasi dengan sistem kunci lokasi geografis yang deterministik</li>
+            <li>Menggunakan 7 tingkat kapasitas berbeda berdasarkan perbedaan pixel</li>
+            <li>Lebih sulit dideteksi dibanding metode LSB tradisional</li>
+            <li>Preservasi kualitas visual yang superior dengan distorsi minimal</li>
+            <li>Built-in header validation untuk memastikan kunci lokasi yang benar</li>
           </ul>
         </div>
-
-        {/* Add new section here */}
         <div className="mt-6">
           <h3 className="font-semibold text-blue-200">Berbasis Lokasi Geografis</h3>
           <p className="text-slate-300 text-sm">Sistem ini menggunakan fitur geolokasi untuk menghasilkan kunci lokasi berdasarkan posisi fisik. Pesan hanya dapat dibuka ketika pengguna berada dalam radius lokasi yang ditentukan.</p>
