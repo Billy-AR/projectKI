@@ -68,6 +68,7 @@ export interface PixelPair {
 export interface PVDEmbedResult {
   newPixel1: number;
   newPixel2: number;
+  actualDiff: number; // Tambahkan untuk debugging
 }
 
 export interface ImageAnalysis {
