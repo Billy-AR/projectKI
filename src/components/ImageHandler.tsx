@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { Button } from "./ui/button";
 import { motion } from "framer-motion";
+import { toast } from "react-toastify";
 import type { ImageHandlerProps } from "../Types/index";
 
 const ImageHandler: React.FC<ImageHandlerProps> = ({ onImageSelected, imagePreview, disabled = false }) => {
@@ -21,14 +22,36 @@ const ImageHandler: React.FC<ImageHandlerProps> = ({ onImageSelected, imagePrevi
     setIsDragging(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      onImageSelected(e.dataTransfer.files[0]);
+      validateAndProcessFile(e.dataTransfer.files[0]);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      onImageSelected(e.target.files[0]);
+      validateAndProcessFile(e.target.files[0]);
     }
+  };
+
+  const validateAndProcessFile = (file: File) => {
+    // Validate image type
+    const validTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      toast.error("Format tidak didukung. Gunakan PNG, JPG, atau WebP.");
+      return;
+    }
+
+    // For steganography, recommend PNG format
+    if (file.type !== "image/png") {
+      toast.info("Format PNG direkomendasikan untuk hasil steganografi terbaik");
+    }
+
+    // Check file size
+    if (file.size > 10 * 1024 * 1024) {
+      // 10MB limit
+      toast.warn("Ukuran file besar (>10MB) mungkin memerlukan waktu pemrosesan yang lebih lama");
+    }
+
+    onImageSelected(file);
   };
 
   const handleButtonClick = () => {
@@ -64,6 +87,7 @@ const ImageHandler: React.FC<ImageHandlerProps> = ({ onImageSelected, imagePrevi
             </motion.div>
             <p className="text-slate-300 mb-1">Drag & drop gambar</p>
             <p className="text-sm text-slate-400">atau klik untuk memilih</p>
+            <p className="text-xs text-slate-500 mt-2">PNG direkomendasikan untuk hasil terbaik</p>
           </div>
         )}
         <input type="file" ref={fileInputRef} accept="image/*" onChange={handleFileChange} className="hidden" disabled={disabled} />

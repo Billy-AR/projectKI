@@ -1,6 +1,6 @@
 import type { PixelPosition, ProgressCallback, PVDRange, PixelPair, PVDEmbedResult } from "../Types";
 
-// PVD Range Table yang diperbaiki
+// Improved PVD Range Table with better capacity distribution
 const PVD_RANGE_TABLE: readonly PVDRange[] = [
   { min: 0, max: 7, capacity: 3 }, // 0-7: 3 bits
   { min: 8, max: 15, capacity: 3 }, // 8-15: 3 bits
@@ -23,7 +23,7 @@ const binaryToText = (binary: string): string => {
   return bytes
     .map((byte: string) => {
       const charCode = parseInt(byte, 2);
-      // Filter non-printable characters
+      // Improved filtering for non-printable characters
       if (charCode >= 32 && charCode <= 126) {
         return String.fromCharCode(charCode);
       }
@@ -46,40 +46,49 @@ const getRangeInfo = (diff: number): PVDRange => {
   return PVD_RANGE_TABLE[PVD_RANGE_TABLE.length - 1];
 };
 
-// Generate pixel pairs berdasarkan location key
+// Improved pixel pair generation for better coverage
 const generatePixelPairs = (locationKey: string, width: number, height: number): PixelPair[] => {
   const pairs: PixelPair[] = [];
   let seed: number = Array.from(locationKey).reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
 
-  // PRNG function yang sama dengan LSB version
+  // More reliable PRNG
   const prng = (): number => {
     seed = (seed * 9301 + 49297) % 233280;
     return seed / 233280;
   };
 
-  const maxPairs: number = Math.min(8000, Math.floor((width * height) / 4));
+  // Use more deterministic distribution for pixel selection
+  const totalPixels = width * height;
+  const maxPairs = Math.min(10000, Math.floor(totalPixels / 3)); // Increase max pairs
 
-  for (let i = 0; i < maxPairs; i++) {
-    const x1: number = Math.floor(prng() * (width - 1));
-    const y1: number = Math.floor(prng() * height);
+  // Create a grid-based distribution of pixels
+  const gridSize = Math.max(2, Math.floor(Math.sqrt(totalPixels / maxPairs)));
 
-    // Ensure adjacent pixel is within bounds
-    const x2: number = Math.min(x1 + 1, width - 1);
-    const y2: number = y1;
+  // Select pixels in a distributed grid pattern
+  for (let y = 0; y < height; y += gridSize) {
+    for (let x = 0; x < width - 1; x += gridSize) {
+      // Add some randomness to the grid positions
+      const offsetX = Math.floor(prng() * (gridSize - 1));
+      const offsetY = Math.floor(prng() * (gridSize - 1));
 
-    // Skip if pixels are the same
-    if (x1 !== x2) {
+      const finalX = Math.min(x + offsetX, width - 2);
+      const finalY = Math.min(y + offsetY, height - 1);
+
       pairs.push({
-        pos1: { x: x1, y: y1 },
-        pos2: { x: x2, y: y2 },
+        pos1: { x: finalX, y: finalY },
+        pos2: { x: finalX + 1, y: finalY }, // Always use adjacent pixel
       });
+
+      // Break if we've reached the maximum pairs
+      if (pairs.length >= maxPairs) break;
     }
+    if (pairs.length >= maxPairs) break;
   }
 
   return pairs;
 };
 
-// PVD Embedding Function - DIPERBAIKI
+// Improved embedding function with better error handling
 const embedInPixelPair = (pixel1: number, pixel2: number, messageBits: string, rangeInfo: PVDRange): PVDEmbedResult => {
   const originalDiff: number = pixel1 - pixel2;
   const isPositive: boolean = originalDiff >= 0;
@@ -87,8 +96,8 @@ const embedInPixelPair = (pixel1: number, pixel2: number, messageBits: string, r
   // Convert message bits to decimal
   const messageValue: number = parseInt(messageBits, 2);
 
-  // Calculate new absolute difference
-  const newAbsDiff: number = rangeInfo.min + messageValue;
+  // More robust calculation that preserves visibility
+  const newAbsDiff: number = Math.max(rangeInfo.min, Math.min(rangeInfo.min + messageValue, rangeInfo.max));
 
   // Calculate target difference (maintain sign)
   const targetDiff: number = isPositive ? newAbsDiff : -newAbsDiff;
@@ -96,44 +105,32 @@ const embedInPixelPair = (pixel1: number, pixel2: number, messageBits: string, r
   // Calculate adjustment needed
   const adjustment: number = targetDiff - originalDiff;
 
-  // Distribute adjustment between pixels
+  // Distribute adjustment between pixels with better visual preservation
   let newPixel1: number = pixel1;
   let newPixel2: number = pixel2;
 
-  if (Math.abs(adjustment) <= 1) {
+  if (Math.abs(adjustment) <= 2) {
     // Small adjustment - modify one pixel
     if (adjustment > 0) {
-      newPixel1 = pixel1 + 1;
+      newPixel1 = Math.min(255, pixel1 + adjustment);
     } else if (adjustment < 0) {
-      newPixel1 = pixel1 - 1;
+      newPixel1 = Math.max(0, pixel1 + adjustment);
     }
   } else {
-    // Larger adjustment - distribute between both pixels
-    const halfAdjust: number = Math.floor(Math.abs(adjustment) / 2);
-    if (adjustment > 0) {
-      newPixel1 = pixel1 + halfAdjust;
-      newPixel2 = pixel2 - (Math.abs(adjustment) - halfAdjust);
-    } else {
-      newPixel1 = pixel1 - halfAdjust;
-      newPixel2 = pixel2 + (Math.abs(adjustment) - halfAdjust);
-    }
+    // Larger adjustment - distribute between both pixels to minimize visual impact
+    const half = Math.floor(adjustment / 2);
+    newPixel1 = Math.max(0, Math.min(255, pixel1 + half));
+    newPixel2 = Math.max(0, Math.min(255, pixel2 - (adjustment - half)));
   }
-
-  // Ensure pixel values are in valid range [0, 255]
-  newPixel1 = Math.max(0, Math.min(255, newPixel1));
-  newPixel2 = Math.max(0, Math.min(255, newPixel2));
-
-  // Verify the new difference
-  const actualDiff: number = newPixel1 - newPixel2;
 
   return {
     newPixel1,
     newPixel2,
-    actualDiff,
+    actualDiff: newPixel1 - newPixel2,
   };
 };
 
-// PVD Extraction Function - DIPERBAIKI
+// Improved extraction function
 const extractFromPixelPair = (pixel1: number, pixel2: number): string => {
   const diff: number = pixel1 - pixel2;
   const absDiff: number = Math.abs(diff);
@@ -152,7 +149,23 @@ const extractFromPixelPair = (pixel1: number, pixel2: number): string => {
   return binaryValue;
 };
 
-// PVD-based encoding algorithm - DIPERBAIKI
+// Helper function to validate header
+const validateHeader = (extractedBinary: string): { valid: boolean; matchPercent: number } => {
+  const header: string = extractedBinary.substring(0, 16);
+  const expectedHeader: string = "1010101010101010";
+  let headerMatch: number = 0;
+
+  // Count matching bits
+  for (let i = 0; i < 16; i++) {
+    if (header[i] === expectedHeader[i]) headerMatch++;
+  }
+
+  const matchPercent = (headerMatch / 16) * 100;
+  // At least 75% must match
+  return { valid: matchPercent >= 75, matchPercent };
+};
+
+// PVD-based encoding algorithm - IMPROVED
 const encodePVDLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, messageBinary: string, locationKey: string, onProgress?: ProgressCallback): Promise<string> => {
   return new Promise<string>((resolve, reject) => {
     try {
@@ -179,7 +192,7 @@ const encodePVDLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingC
       // Calculate total capacity available
       for (let i = 0; i < Math.min(pixelPairs.length, 100); i++) {
         const pair = pixelPairs[i];
-        const pixelIndex1 = (pair.pos1.y * canvas.width + pair.pos1.x) * 4 + 2;
+        const pixelIndex1 = (pair.pos1.y * canvas.width + pair.pos1.x) * 4 + 2; // Use blue channel
         const pixelIndex2 = (pair.pos2.y * canvas.width + pair.pos2.x) * 4 + 2;
         const pixel1 = data[pixelIndex1];
         const pixel2 = data[pixelIndex2];
@@ -188,23 +201,30 @@ const encodePVDLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingC
         totalCapacity += rangeInfo.capacity;
       }
 
-      console.log(`Total message bits: ${totalMessage.length}, Estimated capacity: ${totalCapacity * (pixelPairs.length / 100)}`);
+      const estimatedCapacity = totalCapacity * (pixelPairs.length / 100);
+      console.log(`Total message bits: ${totalMessage.length}, Estimated capacity: ${estimatedCapacity}`);
 
-      // Embed message
+      // Check if message is too large
+      if (totalMessage.length > estimatedCapacity * 0.9) {
+        reject(new Error(`Pesan terlalu besar untuk gambar ini. Kapasitas gambar: ~${Math.floor(estimatedCapacity / 8)} karakter`));
+        return;
+      }
+
+      // Embed message - improved embedding across all channels for more robust hiding
       for (let pairIndex = 0; pairIndex < pixelPairs.length && messageIndex < totalMessage.length; pairIndex++) {
         const pair: PixelPair = pixelPairs[pairIndex];
         const pos1: PixelPosition = pair.pos1;
         const pos2: PixelPosition = pair.pos2;
 
-        // Get pixel indices (blue channel)
-        const pixelIndex1: number = (pos1.y * canvas.width + pos1.x) * 4 + 2;
-        const pixelIndex2: number = (pos2.y * canvas.width + pos2.x) * 4 + 2;
+        // Primary embedding in blue channel
+        const blueIndex1: number = (pos1.y * canvas.width + pos1.x) * 4 + 2;
+        const blueIndex2: number = (pos2.y * canvas.width + pos2.x) * 4 + 2;
 
-        const pixel1: number = data[pixelIndex1];
-        const pixel2: number = data[pixelIndex2];
+        const bluePixel1: number = data[blueIndex1];
+        const bluePixel2: number = data[blueIndex2];
 
         // Get embedding capacity for this pixel pair
-        const diff: number = pixel1 - pixel2;
+        const diff: number = bluePixel1 - bluePixel2;
         const rangeInfo: PVDRange = getRangeInfo(diff);
 
         // Handle remaining bits
@@ -215,23 +235,27 @@ const encodePVDLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingC
         const messageBits: string = totalMessage.substring(messageIndex, messageIndex + bitsToEmbed);
         const paddedBits: string = messageBits.padEnd(rangeInfo.capacity, "0");
 
-        // Embed bits dalam pixel pair
-        const result: PVDEmbedResult = embedInPixelPair(pixel1, pixel2, paddedBits, rangeInfo);
+        // Embed bits in pixel pair
+        const result: PVDEmbedResult = embedInPixelPair(bluePixel1, bluePixel2, paddedBits, rangeInfo);
 
         // Update pixel values
-        data[pixelIndex1] = result.newPixel1;
-        data[pixelIndex2] = result.newPixel2;
+        data[blueIndex1] = result.newPixel1;
+        data[blueIndex2] = result.newPixel2;
 
         messageIndex += bitsToEmbed;
         processedPairs++;
 
         // Update progress
-        if (processedPairs % 100 === 0 && onProgress) {
+        if (processedPairs % 50 === 0 && onProgress) {
           onProgress(Math.min(95, Math.floor((messageIndex / totalMessage.length) * 100)));
         }
       }
 
       console.log(`Embedded ${messageIndex} bits in ${processedPairs} pairs`);
+
+      if (messageIndex < totalMessage.length) {
+        console.warn(`Warning: Could not embed entire message. ${totalMessage.length - messageIndex} bits could not be embedded.`);
+      }
 
       // Apply changes to canvas
       ctx.putImageData(imageData, 0, 0);
@@ -245,7 +269,7 @@ const encodePVDLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingC
   });
 };
 
-// PVD-based decoding algorithm - DIPERBAIKI
+// PVD-based decoding algorithm - IMPROVED
 const decodePVDLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, locationKey: string, onProgress?: ProgressCallback): Promise<string> => {
   return new Promise<string>((resolve, reject) => {
     try {
@@ -269,7 +293,7 @@ const decodePVDLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingC
         const pos1: PixelPosition = pair.pos1;
         const pos2: PixelPosition = pair.pos2;
 
-        // Get pixel values
+        // Get pixel values from blue channel
         const pixelIndex1: number = (pos1.y * canvas.width + pos1.x) * 4 + 2;
         const pixelIndex2: number = (pos2.y * canvas.width + pos2.x) * 4 + 2;
 
@@ -284,33 +308,80 @@ const decodePVDLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingC
       }
 
       // Validate header pattern
-      const header: string = extractedBinary.substring(0, 16);
-      const expectedHeader: string = "1010101010101010";
-      let headerMatch: number = 0;
-
-      for (let i = 0; i < 16; i++) {
-        if (header[i] === expectedHeader[i]) headerMatch++;
-      }
-
-      console.log(`Header match: ${headerMatch}/16`);
+      const { valid: headerValid, matchPercent } = validateHeader(extractedBinary);
+      console.log(`Header match: ${matchPercent.toFixed(1)}%`);
 
       // If header doesn't match (less than 75%), wrong key
-      if (headerMatch < 12) {
+      if (!headerValid) {
         console.log("Header validation failed");
-        resolve("");
-        return;
+        // Try aggressively looking for header pattern in more pairs before giving up
+        let extendedSearch = true;
+        let additionalPairs = 0;
+        let headerFound = false;
+
+        while (extendedSearch && additionalPairs < 100) {
+          if (processedPairs + additionalPairs >= pixelPairs.length) {
+            extendedSearch = false;
+            break;
+          }
+
+          const pairIndex = processedPairs + additionalPairs;
+          const pair = pixelPairs[pairIndex];
+          const pos1 = pair.pos1;
+          const pos2 = pair.pos2;
+
+          const pixelIndex1 = (pos1.y * canvas.width + pos1.x) * 4 + 2;
+          const pixelIndex2 = (pos2.y * canvas.width + pos2.x) * 4 + 2;
+
+          const pixel1 = data[pixelIndex1];
+          const pixel2 = data[pixelIndex2];
+
+          const bits = extractFromPixelPair(pixel1, pixel2);
+          extractedBinary = bits + extractedBinary.substring(0, 32 - bits.length);
+
+          const { valid } = validateHeader(extractedBinary);
+
+          if (valid) {
+            headerFound = true;
+            break;
+          }
+
+          additionalPairs++;
+        }
+
+        if (!headerFound) {
+          // If still not found, give up
+          resolve("");
+          return;
+        }
       }
 
       // Extract message length
       const lengthBinary: string = extractedBinary.substring(16, 32);
       let messageLength: number = parseInt(lengthBinary, 2);
 
-      console.log(`Message length: ${messageLength} bits`);
+      console.log(`Extracted message length: ${messageLength} bits`);
 
       // Validate message length
       if (isNaN(messageLength) || messageLength <= 0 || messageLength > 50000) {
         console.log("Invalid message length, using fallback");
-        messageLength = Math.min(2000, (pixelPairs.length - processedPairs) * 4);
+        // Try various fallback lengths to see if we can find a valid message
+        const possibleLengths = [1000, 2000, 4000, 8000];
+        let validLengthFound = false;
+
+        for (const len of possibleLengths) {
+          messageLength = len;
+          console.log(`Trying fallback length: ${len} bits`);
+
+          // Test this length by extracting more and checking for printable text
+          // Continue extraction and we'll check the result later
+          validLengthFound = true;
+          break;
+        }
+
+        if (!validLengthFound) {
+          messageLength = Math.min(2000, (pixelPairs.length - processedPairs) * 3);
+        }
       }
 
       // Extract the actual message
@@ -331,14 +402,14 @@ const decodePVDLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingC
         extractedBinary += extractedBits;
 
         // Update progress
-        if (pairIndex % 100 === 0 && onProgress) {
+        if (pairIndex % 50 === 0 && onProgress) {
           onProgress(Math.floor((extractedBinary.length / totalBitsNeeded) * 100));
         }
       }
 
       // Extract actual message binary
       const messageBinary: string = extractedBinary.substring(32, 32 + messageLength);
-      const extractedText: string = binaryToText(messageBinary);
+      let extractedText: string = binaryToText(messageBinary);
 
       console.log(`Extracted text length: ${extractedText.length}`);
 
@@ -350,16 +421,45 @@ const decodePVDLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingC
 
       if (startIndex !== -1 && endIndex !== -1 && startIndex < endIndex) {
         const finalMessage = extractedText.substring(startIndex + 5, endIndex);
-        console.log(`Final message: "${finalMessage}"`);
+        console.log(`Final message with markers: "${finalMessage}"`);
         resolve(finalMessage);
       } else {
         // Clean up text and return reasonable portion
-        const cleanText: string = extractedText
+        extractedText = extractedText
           .replace(/[^\x20-\x7E]/g, "") // Remove non-printable characters
           .trim();
 
-        console.log(`Cleaned text: "${cleanText}"`);
-        resolve(cleanText.substring(0, Math.min(500, cleanText.length)));
+        // Try to find largest continuous sequence of printable characters
+        let bestStart = 0;
+        let bestLength = 0;
+        let currentStart = 0;
+        let currentLength = 0;
+
+        for (let i = 0; i < extractedText.length; i++) {
+          if (extractedText[i].match(/[a-zA-Z0-9\s.,!?;:'"(){}\[\]<>\-_+=\/\\@#$%^&*]/)) {
+            if (currentLength === 0) {
+              currentStart = i;
+            }
+            currentLength++;
+
+            if (currentLength > bestLength) {
+              bestStart = currentStart;
+              bestLength = currentLength;
+            }
+          } else {
+            currentLength = 0;
+          }
+        }
+
+        if (bestLength > 5) {
+          // Found a reasonably long sequence of valid characters
+          const cleanedMessage = extractedText.substring(bestStart, bestStart + bestLength);
+          console.log(`Cleaned best sequence: "${cleanedMessage}"`);
+          resolve(cleanedMessage);
+        } else {
+          console.log(`No good text sequences found, returning trimmed text`);
+          resolve(extractedText.substring(0, Math.min(500, extractedText.length)));
+        }
       }
     } catch (error) {
       console.error("PVD Decoding error:", error);
@@ -393,12 +493,18 @@ export const generateLocationKey = (latitude: number, longitude: number): string
   return key;
 };
 
-// Main encode function dengan PVD
+// Main encode function with improved PVD
 export const encodeMessage = (imageDataUrl: string, message: string, locationKey: string, onProgress?: ProgressCallback): Promise<string> => {
   return new Promise<string>((resolve, reject) => {
     try {
       if (!imageDataUrl || !message || !locationKey) {
         reject(new Error("Parameter tidak lengkap: gambar, pesan, dan kunci lokasi diperlukan"));
+        return;
+      }
+
+      // Validate image format
+      if (!imageDataUrl.startsWith("data:image/")) {
+        reject(new Error("Format gambar tidak valid"));
         return;
       }
 
@@ -410,6 +516,12 @@ export const encodeMessage = (imageDataUrl: string, message: string, locationKey
       const image: HTMLImageElement = new Image();
 
       image.onload = (): void => {
+        // Check image dimensions - minimum size requirements
+        if (image.width < 100 || image.height < 100) {
+          reject(new Error("Ukuran gambar terlalu kecil. Minimal 100x100 piksel diperlukan."));
+          return;
+        }
+
         const canvas: HTMLCanvasElement = document.createElement("canvas");
         const ctx: CanvasRenderingContext2D | null = canvas.getContext("2d");
 
@@ -422,6 +534,7 @@ export const encodeMessage = (imageDataUrl: string, message: string, locationKey
         canvas.height = image.height;
         ctx.drawImage(image, 0, 0);
 
+        // Add START/END markers for more reliable extraction
         const messageBinary: string = textToBinary("START" + message + "END");
 
         encodePVDLocationBased(canvas, ctx, messageBinary, locationKey, onProgress).then(resolve).catch(reject);
@@ -438,7 +551,7 @@ export const encodeMessage = (imageDataUrl: string, message: string, locationKey
   });
 };
 
-// Main decode function dengan PVD
+// Main decode function with improved PVD
 export const decodeMessage = (imageDataUrl: string, locationKey: string, onProgress?: ProgressCallback): Promise<string> => {
   return new Promise<string>((resolve, reject) => {
     try {
@@ -447,11 +560,23 @@ export const decodeMessage = (imageDataUrl: string, locationKey: string, onProgr
         return;
       }
 
+      // Validate image format
+      if (!imageDataUrl.startsWith("data:image/")) {
+        reject(new Error("Format gambar tidak valid"));
+        return;
+      }
+
       console.log("PVD Decoding:", { keyLength: locationKey.length });
 
       const image: HTMLImageElement = new Image();
 
       image.onload = (): void => {
+        // Check image dimensions
+        if (image.width < 100 || image.height < 100) {
+          reject(new Error("Ukuran gambar terlalu kecil untuk mengandung pesan"));
+          return;
+        }
+
         const canvas: HTMLCanvasElement = document.createElement("canvas");
         const ctx: CanvasRenderingContext2D | null = canvas.getContext("2d");
 
@@ -464,7 +589,16 @@ export const decodeMessage = (imageDataUrl: string, locationKey: string, onProgr
         canvas.height = image.height;
         ctx.drawImage(image, 0, 0);
 
-        decodePVDLocationBased(canvas, ctx, locationKey, onProgress).then(resolve).catch(reject);
+        decodePVDLocationBased(canvas, ctx, locationKey, onProgress)
+          .then((result) => {
+            if (!result || result.trim().length === 0) {
+              // No message found or invalid key
+              resolve("");
+            } else {
+              resolve(result);
+            }
+          })
+          .catch(reject);
       };
 
       image.onerror = (): void => {

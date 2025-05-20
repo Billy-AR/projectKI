@@ -52,13 +52,21 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
     }
   }, []);
 
+  // Auto get location when in decode mode
+  useEffect(() => {
+    if (mode === "decode") {
+      getCurrentLocation();
+    }
+  }, [mode]);
+
   // Update key ketika lokasi berubah
   useEffect(() => {
     if (currentLocation) {
       const key = generateLocationKey(currentLocation.latitude, currentLocation.longitude);
       setCurrentKey(key);
+      onKeyGenerated(key);
     }
-  }, [currentLocation]);
+  }, [currentLocation, onKeyGenerated]);
 
   // Get current location
   const getCurrentLocation = () => {
@@ -156,6 +164,90 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
     toast.info("Lokasi dihapus");
   };
 
+  // Render different UI for encode vs decode mode
+  if (mode === "decode") {
+    // Simplified UI for decode mode
+    return (
+      <div className="space-y-4">
+        <div className="flex gap-2">
+          <Button onClick={getCurrentLocation} className="flex-1 bg-blue-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30" disabled={disabled || isLoading}>
+            <MapPin className="mr-2 h-4 w-4" />
+            {isLoading ? "Mencari Lokasi..." : "Perbarui Lokasi Saat Ini"}
+          </Button>
+
+          {savedLocations.length > 0 && (
+            <Dialog open={savedLocationsDialogOpen} onOpenChange={setSavedLocationsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="bg-slate-700/20 border-slate-600/30 text-slate-300" disabled={disabled}>
+                  <List className="mr-2 h-4 w-4" />
+                  Lokasi Tersimpan
+                </Button>
+              </DialogTrigger>
+
+              <DialogContent className="bg-slate-800 border-slate-700 rounded-xl max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-xl font-semibold text-blue-100">Pilih Lokasi Tersimpan</DialogTitle>
+                </DialogHeader>
+
+                <div className="py-4">
+                  {savedLocations.length > 0 ? (
+                    <div className="space-y-4 max-h-80 overflow-auto pr-2">
+                      {savedLocations.map((location, index) => (
+                        <div key={index} className="bg-slate-700/30 p-3 rounded-md border border-slate-600/50 hover:border-blue-500/30 transition-colors">
+                          <div className="flex justify-between items-center mb-2">
+                            <div className="flex-1">
+                              <div className="flex items-center">
+                                <MapPin className="h-4 w-4 text-blue-400 mr-2" />
+                                <p className="text-blue-200 font-medium">{location.name}</p>
+                              </div>
+                              <p className="text-xs text-slate-400 mt-1">
+                                Koordinat: {location.lat.toFixed(3)}, {location.lng.toFixed(3)}
+                              </p>
+                              <p className="text-xs text-slate-500 mt-0.5 font-mono">{getKeyPreview(location.key)}</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button onClick={() => selectLocation(location)} size="sm" className="bg-blue-600 hover:bg-blue-700 text-sm">
+                                Pilih
+                              </Button>
+                              <Button onClick={() => deleteLocation(index)} size="sm" variant="destructive" className="bg-red-600/20 hover:bg-red-700/30 border-red-500/30 text-red-300 text-sm">
+                                Hapus
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Small map preview for each saved location */}
+                          <LocationMap position={[location.lat, location.lng]} radius={location.radius} editable={false} />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-slate-400">
+                      <p>Belum ada lokasi tersimpan</p>
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+
+        {currentLocation && (
+          <div className="bg-slate-700/30 rounded-md p-3 overflow-hidden mt-2">
+            <div className="flex items-center gap-2 mb-1">
+              <MapPin className="h-3 w-3 text-blue-400" />
+              <p className="text-xs text-blue-200">Lokasi saat ini terdeteksi</p>
+            </div>
+            <div className="font-mono text-blue-300 text-sm truncate bg-slate-800/50 p-2 rounded">{currentKey}</div>
+            <p className="text-xs text-slate-400 mt-2">
+              Koordinat Grid: {Math.round(currentLocation.latitude * 1000) / 1000}, {Math.round(currentLocation.longitude * 1000) / 1000}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Original UI for encode mode
   return (
     <div className="flex gap-2">
       {/* Button to create new location */}
@@ -163,7 +255,7 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
         <DialogTrigger asChild>
           <Button variant="outline" className="flex-1 whitespace-nowrap bg-blue-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30 hover:border-blue-500/50 hover:text-blue-200" disabled={disabled}>
             <MapPin className="mr-2 h-4 w-4" />
-            {mode === "encode" ? "Buat Kunci Lokasi" : "Buat Kunci Lokasi"}
+            Buat Kunci Lokasi
           </Button>
         </DialogTrigger>
 
