@@ -36,21 +36,23 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
   const [savedLocations, setSavedLocations] = useState<SavedLocation[]>([]);
   const [currentKey, setCurrentKey] = useState<string>("");
 
-  // Load saved locations on component mount
+  // Load saved locations on component mount (only for encode mode)
   useEffect(() => {
-    try {
-      const storedLocations = localStorage.getItem("stegoLocations");
-      if (storedLocations) {
-        const parsedLocations = JSON.parse(storedLocations);
-        // Filter lokasi yang tidak valid
-        const validLocations = parsedLocations.filter((loc: any) => loc && typeof loc === "object" && loc.key && loc.name);
-        setSavedLocations(validLocations);
+    if (mode === "encode") {
+      try {
+        const storedLocations = localStorage.getItem("stegoLocations");
+        if (storedLocations) {
+          const parsedLocations = JSON.parse(storedLocations);
+          // Filter lokasi yang tidak valid
+          const validLocations = parsedLocations.filter((loc: any) => loc && typeof loc === "object" && loc.key && loc.name);
+          setSavedLocations(validLocations);
+        }
+      } catch (e) {
+        console.error("Error parsing saved locations:", e);
+        localStorage.removeItem("stegoLocations");
       }
-    } catch (e) {
-      console.error("Error parsing saved locations:", e);
-      localStorage.removeItem("stegoLocations");
     }
-  }, []);
+  }, [mode]);
 
   // Auto get location when in decode mode
   useEffect(() => {
@@ -164,90 +166,48 @@ const GeoLocationKeyGenerator: React.FC<GeoLocationKeyProps> = ({ onKeyGenerated
     toast.info("Lokasi dihapus");
   };
 
-  // Render different UI for encode vs decode mode
+  // DECODE MODE - Hanya tampilkan lokasi saat ini tanpa opsi lokasi tersimpan
   if (mode === "decode") {
-    // Simplified UI for decode mode
     return (
-      <div className="space-y-4">
-        <div className="flex gap-2">
-          <Button onClick={getCurrentLocation} className="flex-1 bg-blue-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30" disabled={disabled || isLoading}>
-            <MapPin className="mr-2 h-4 w-4" />
-            {isLoading ? "Mencari Lokasi..." : "Perbarui Lokasi Saat Ini"}
-          </Button>
-
-          {savedLocations.length > 0 && (
-            <Dialog open={savedLocationsDialogOpen} onOpenChange={setSavedLocationsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="bg-slate-700/20 border-slate-600/30 text-slate-300" disabled={disabled}>
-                  <List className="mr-2 h-4 w-4" />
-                  Lokasi Tersimpan
-                </Button>
-              </DialogTrigger>
-
-              <DialogContent className="bg-slate-800 border-slate-700 rounded-xl max-w-md">
-                <DialogHeader>
-                  <DialogTitle className="text-xl font-semibold text-blue-100">Pilih Lokasi Tersimpan</DialogTitle>
-                </DialogHeader>
-
-                <div className="py-4">
-                  {savedLocations.length > 0 ? (
-                    <div className="space-y-4 max-h-80 overflow-auto pr-2">
-                      {savedLocations.map((location, index) => (
-                        <div key={index} className="bg-slate-700/30 p-3 rounded-md border border-slate-600/50 hover:border-blue-500/30 transition-colors">
-                          <div className="flex justify-between items-center mb-2">
-                            <div className="flex-1">
-                              <div className="flex items-center">
-                                <MapPin className="h-4 w-4 text-blue-400 mr-2" />
-                                <p className="text-blue-200 font-medium">{location.name}</p>
-                              </div>
-                              <p className="text-xs text-slate-400 mt-1">
-                                Koordinat: {location.lat.toFixed(3)}, {location.lng.toFixed(3)}
-                              </p>
-                              <p className="text-xs text-slate-500 mt-0.5 font-mono">{getKeyPreview(location.key)}</p>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button onClick={() => selectLocation(location)} size="sm" className="bg-blue-600 hover:bg-blue-700 text-sm">
-                                Pilih
-                              </Button>
-                              <Button onClick={() => deleteLocation(index)} size="sm" variant="destructive" className="bg-red-600/20 hover:bg-red-700/30 border-red-500/30 text-red-300 text-sm">
-                                Hapus
-                              </Button>
-                            </div>
-                          </div>
-
-                          {/* Small map preview for each saved location */}
-                          <LocationMap position={[location.lat, location.lng]} radius={location.radius} editable={false} />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-6 text-slate-400">
-                      <p>Belum ada lokasi tersimpan</p>
-                    </div>
-                  )}
-                </div>
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
-
-        {currentLocation && (
-          <div className="bg-slate-700/30 rounded-md p-3 overflow-hidden mt-2">
-            <div className="flex items-center gap-2 mb-1">
-              <MapPin className="h-3 w-3 text-blue-400" />
-              <p className="text-xs text-blue-200">Lokasi saat ini terdeteksi</p>
+      <div className="space-y-2">
+        {isLoading ? (
+          <div className="bg-slate-700/30 rounded-md p-4 text-center">
+            <svg className="animate-spin h-5 w-5 text-blue-400 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p className="text-blue-200 text-sm">Mendapatkan lokasi saat ini...</p>
+          </div>
+        ) : currentLocation ? (
+          <div className="bg-slate-700/30 rounded-md p-3">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-blue-400" />
+                <p className="text-sm text-blue-200">Lokasi saat ini</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={getCurrentLocation} disabled={disabled || isLoading} className="h-7 px-2 text-xs text-slate-300 hover:bg-slate-700/50">
+                Refresh
+              </Button>
             </div>
             <div className="font-mono text-blue-300 text-sm truncate bg-slate-800/50 p-2 rounded">{currentKey}</div>
             <p className="text-xs text-slate-400 mt-2">
               Koordinat Grid: {Math.round(currentLocation.latitude * 1000) / 1000}, {Math.round(currentLocation.longitude * 1000) / 1000}
             </p>
           </div>
+        ) : (
+          <div className="bg-slate-700/30 rounded-md p-4 text-center">
+            <p className="text-red-300 mb-2">Lokasi tidak ditemukan</p>
+            <Button onClick={getCurrentLocation} className="w-full bg-blue-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30" disabled={disabled || isLoading} size="sm">
+              <MapPin className="mr-2 h-4 w-4" />
+              Dapatkan Lokasi
+            </Button>
+          </div>
         )}
       </div>
     );
   }
 
-  // Original UI for encode mode
+  // ENCODE MODE - Full UI with saved locations and creation
   return (
     <div className="flex gap-2">
       {/* Button to create new location */}
