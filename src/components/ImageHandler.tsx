@@ -4,9 +4,22 @@ import { motion } from "framer-motion";
 import { toast } from "react-toastify";
 import type { ImageHandlerProps } from "../Types/index";
 
+interface FileInfoProps {
+  name: string;
+  type: string;
+  size: number;
+}
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024) return bytes + " B";
+  else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  else return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+};
+
 const ImageHandler: React.FC<ImageHandlerProps> = ({ onImageSelected, imagePreview, disabled = false }) => {
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [fileInfo, setFileInfo] = useState<FileInfoProps | null>(null);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -51,12 +64,36 @@ const ImageHandler: React.FC<ImageHandlerProps> = ({ onImageSelected, imagePrevi
       toast.warn("Ukuran file besar (>10MB) mungkin memerlukan waktu pemrosesan yang lebih lama");
     }
 
+    // Simpan informasi file
+    setFileInfo({
+      name: file.name,
+      type: file.type,
+      size: file.size,
+    });
+
     onImageSelected(file);
   };
 
   const handleButtonClick = () => {
     if (fileInputRef.current) {
       fileInputRef.current.click();
+    }
+  };
+
+  // Helper function untuk mendapatkan nama format yang lebih user-friendly
+  const getFormatName = (mimeType: string): string => {
+    switch (mimeType) {
+      case "image/png":
+        return "PNG";
+      case "image/jpeg":
+      case "image/jpg":
+        return "JPG";
+      case "image/webp":
+        return "WebP";
+      case "image/gif":
+        return "GIF";
+      default:
+        return mimeType.split("/")[1]?.toUpperCase() || mimeType;
     }
   };
 
@@ -92,10 +129,30 @@ const ImageHandler: React.FC<ImageHandlerProps> = ({ onImageSelected, imagePrevi
         )}
         <input type="file" ref={fileInputRef} accept="image/*" onChange={handleFileChange} className="hidden" disabled={disabled} />
       </div>
-      {imagePreview && (
-        <Button variant="outline" size="sm" onClick={handleButtonClick} disabled={disabled} className="w-full border-slate-600/80 text-slate-300 hover:bg-slate-700/50 hover:text-white hover:border-slate-500">
-          Ganti Gambar
-        </Button>
+
+      {/* Informasi file yang diunggah */}
+      {imagePreview && fileInfo && (
+        <div className="bg-slate-800/40 rounded-md p-2 text-xs space-y-1">
+          <div className="flex justify-between items-center">
+            <span className="font-medium text-blue-200">Informasi Gambar:</span>
+            <Button variant="outline" size="sm" onClick={handleButtonClick} disabled={disabled} className="h-6 py-0 px-2 text-xs border-slate-600/80 text-slate-300 hover:bg-slate-700/50">
+              Ganti
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 gap-1">
+            <div className="text-slate-400 truncate">Nama:</div>
+            <div className="text-slate-300 truncate font-mono">{fileInfo.name}</div>
+
+            <div className="text-slate-400">Format:</div>
+            <div className="text-slate-300">
+              <span className={`px-1.5 py-0.5 rounded text-xs ${fileInfo.type === "image/png" ? "bg-green-900/30 text-green-300" : "bg-yellow-900/30 text-yellow-300"}`}>{getFormatName(fileInfo.type)}</span>
+              {fileInfo.type !== "image/png" && <span className="text-yellow-400 ml-1.5 text-[10px]">(PNG disarankan)</span>}
+            </div>
+
+            <div className="text-slate-400">Ukuran:</div>
+            <div className="text-slate-300">{formatFileSize(fileInfo.size)}</div>
+          </div>
+        </div>
       )}
     </div>
   );
