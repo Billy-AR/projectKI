@@ -1,4 +1,4 @@
-import type { PixelPosition, ProgressCallback, PVDRange, PixelPair, PVDEmbedResult } from "../Types";
+import type { ProgressCallback, PVDRange, PixelPair, PVDEmbedResult } from "../Types";
 
 // Simplified and proven PVD Range Table
 const PVD_RANGE_TABLE: readonly PVDRange[] = [
@@ -241,7 +241,7 @@ const encodePVDLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingC
 
 // FIXED: Simplified decoding
 const decodePVDLocationBased = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, locationKey: string, onProgress?: ProgressCallback): Promise<string> => {
-  return new Promise<string>((resolve, reject) => {
+  return new Promise<string>((resolve) => {
     try {
       const imageData: ImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data: Uint8ClampedArray = imageData.data;
