@@ -143,7 +143,3 @@ Untuk dokumentasi lebih lanjut mengenai Vite dan React, Anda bisa merujuk ke tau
 
 Semoga membantu! Selamat mencoba! 😄
 
-```
-
-Sekarang **README.md** ini sudah siap untuk digunakan di project React dengan Vite, mencakup langkah-langkah instalasi, cara menjalankan aplikasi, build untuk produksi, dan menjalankan build secara lokal.
-```
