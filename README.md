@@ -1,54 +1,145 @@
-# React + TypeScript + Vite
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-Currently, two official plugins are available:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+# React Vite Project
 
-## Expanding the ESLint configuration
+Ini adalah project React yang menggunakan Vite sebagai build tool. Ikuti langkah-langkah di bawah ini untuk menginstal dan menjalankan project.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Prasyarat
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+Pastikan Anda telah menginstal perangkat berikut:
+
+- **Node.js** (Disarankan versi 16 atau lebih tinggi)  
+  Anda dapat mengunduhnya di [Node.js official website](https://nodejs.org/).
+
+- **npm** atau **yarn** (npm terinstal secara default dengan Node.js)
+
+## Langkah 1: Clone Repository
+
+Jika Anda belum memiliki repository ini, clone project menggunakan git:
+
+```bash
+git clone https://github.com/username/repository-name.git
+cd repository-name
+````
+
+Gantilah `https://github.com/username/repository-name.git` dengan URL repository Anda.
+
+## Langkah 2: Instal Dependensi
+
+Setelah Anda masuk ke dalam direktori project, jalankan perintah berikut untuk menginstal dependensi yang diperlukan:
+
+Dengan **npm**:
+
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Dengan **yarn**:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
+```bash
+yarn install
 ```
+
+## Langkah 3: Menjalankan Project
+
+Untuk menjalankan project dalam mode pengembangan, gunakan salah satu perintah berikut:
+
+Dengan **npm**:
+
+```bash
+npm run dev
+```
+
+Dengan **yarn**:
+
+```bash
+yarn dev
+```
+
+Setelah menjalankan perintah ini, Vite akan memulai server pengembangan, dan Anda akan melihat output di terminal seperti ini:
+
+```bash
+  VITE v3.x.x  ready in 500ms
+
+  Local:   http://localhost:5173/
+  Network: use --host to expose
+```
+
+Sekarang, buka browser Anda dan akses [http://localhost:5173](http://localhost:5173) untuk melihat aplikasi React Anda berjalan.
+
+## Langkah 4: Build untuk Produksi
+
+Jika Anda siap untuk membangun aplikasi untuk produksi, jalankan perintah berikut:
+
+Dengan **npm**:
+
+```bash
+npm run build
+```
+
+Dengan **yarn**:
+
+```bash
+yarn build
+```
+
+Perintah ini akan menghasilkan folder `dist` yang berisi build aplikasi yang siap digunakan di server produksi.
+
+## Langkah 5: Menjalankan Build untuk Produksi Secara Lokal
+
+Untuk menjalankan build produksi secara lokal dan menguji hasilnya, jalankan perintah berikut:
+
+Dengan **npm**:
+
+```bash
+npm run preview
+```
+
+Dengan **yarn**:
+
+```bash
+yarn preview
+```
+
+Server preview akan berjalan pada [http://localhost:4173](http://localhost:4173).
+
+---
+
+## Troubleshooting
+
+1. **Jika Anda melihat kesalahan terkait versi Node.js**:
+   Pastikan Anda menggunakan versi yang kompatibel dengan project ini. Anda bisa memeriksa versi Node.js dengan perintah:
+
+   ```bash
+   node -v
+   ```
+
+   Jika Anda perlu mengganti versi Node.js, gunakan [nvm (Node Version Manager)](https://github.com/nvm-sh/nvm) untuk mengelola versi Node.js.
+
+2. **Jika Anda melihat kesalahan terkait dependensi**:
+   Cobalah untuk menghapus folder `node_modules` dan file `package-lock.json` atau `yarn.lock`, lalu jalankan kembali:
+
+   ```bash
+   npm install
+   ```
+
+   atau
+
+   ```bash
+   yarn install
+   ```
+
+---
+
+## Informasi Lebih Lanjut
+
+Untuk dokumentasi lebih lanjut mengenai Vite dan React, Anda bisa merujuk ke tautan berikut:
+
+* [Vite Documentation](https://vitejs.dev/)
+* [React Documentation](https://reactjs.org/)
+
+---
+
+Semoga membantu! Selamat mencoba! 😄
+
